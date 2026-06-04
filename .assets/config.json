@@ -1,0 +1,6 @@
+{ 
+    "user_settings": {
+        "theme": "dark", 
+        "seclist_path": "/usr/share/seclists/"
+    }    
+} 

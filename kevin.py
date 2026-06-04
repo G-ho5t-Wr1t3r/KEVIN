@@ -2,6 +2,7 @@
 
 import argparse
 from datetime import datetime
+import json
 import os
 import re
 import subprocess
@@ -28,7 +29,7 @@ def blue(msg:str):
 def reset(msg:str):
     return f'{RESET}'
 
-class ToolSuite:
+class ToolSuiteInitializer:
 
     def __init__(self, DEBUG, CLEAN, IP: str, COMMON_NAME: str, HOST_NAME: str, WORKSPACE_PATH: str, VPN_PATH: str, ALIAS: str):
         self.DEBUG = DEBUG
@@ -47,7 +48,32 @@ class ToolSuite:
 
         self.ALIAS = os.path.expanduser(ALIAS) if ALIAS else None
         self.PATH = os.path.abspath(__file__)
+
+        self.extract_settings()
     
+    def print_banner(self):
+        try:
+            with open(file='.assets/ascii_art.txt', mode='r') as banner_file:
+                banner = banner_file.read()
+                print(red(banner))
+        except Exception as e:
+            print(red('=== KEVIN (offensive toolsuite) === '))
+
+    def extract_settings(self):
+        config_labels = ['user_settings', 'theme', 'seclist_path']
+        try:
+            with open(file='.assets/config.json', mode='r') as config_file:
+                config_file = json.load(config_file)
+                self.THEME = config_file[config_labels[0]][config_labels[1]]
+                self.SECLIST_PATH = config_file[config_labels[0]][config_labels[2]]
+                self.log_actions(f'[SETTINGS] Theme Color: {self.THEME}')
+                self.log_actions(f'[SETTINGS] Seclist\'s Path: {self.SECLIST_PATH}')
+        except Exception as e:
+            message = f'[CRITICAL] Error: config file not found or some config is missing!\nMandatory configs: {config_labels}'
+            print(red(message))
+            self.log_actions(f'{message}\n{e}')
+            exit(1)
+
 
     def log_actions(self, message: str):
         if self.CLEAN and self.DEBUG:
@@ -277,13 +303,18 @@ class ToolSuite:
                 check=True
             ) 
 
-            output = response.stdout.decode()
+            output = response.stdout
             if 'Linux' in output:
-                self.OS = 'Linux'
+                OS = 'Linux'
             elif 'Windows' in output:
-                self.OS = 'Windows'
+                OS = 'Windows'
             else:
-                self.OS = 'Exotic_Banana' # TODO Not supported yet!
+                OS = 'Exotic_Banana' # TODO Not supported yet!
+            
+            message = f'Machine OS: {OS}'
+            print(yellow(message))
+            self.log_actions(f'[NMAP] {message}')
+            return OS
 
 
         self.log_actions('[NMAP] Starting nmap routine...')
@@ -301,7 +332,7 @@ class ToolSuite:
         )        
 
         ports = parse_open_ports(full_port_path)
-        print(yellow(f'Active ports: {ports.replace(',','\n')}'))
+        print(yellow(f'Active ports: {ports.replace(',',', ')}'))
         self.log_actions(f'[NMAP] Full scan done, active ports: {ports}')
 
         detailed_scan_path = f'{self.NMAP_PATH}/detailded'
@@ -330,14 +361,15 @@ class ToolSuite:
         )   
         self.log_actions('[NMAP] UDP scan done!')
 
-        detect_OS()
-        self.log_actions(f'[NMAP] Machine OS: {self.OS}')
+        self.OS = detect_OS()
 
         # TODO implementare azioni utili!
 
 
     def routine(self):
         try: 
+            self.print_banner()
+
             # ==== SETUP ==== #
             self.setup_workspace()
             self.alias()
@@ -422,7 +454,7 @@ def main():
     vpn_path = args.vpn
     CLEAN = args.clean_log
 
-    tool = ToolSuite(DEBUG, CLEAN, ip, common_name, host_name, workspace_path, vpn_path, alias_path)
+    tool = ToolSuiteInitializer(DEBUG, CLEAN, ip, common_name, host_name, workspace_path, vpn_path, alias_path)
     tool.routine()
 
 if __name__ == "__main__":
