@@ -1,10 +1,10 @@
-from .colors import Shell_Colors
 from datetime import datetime
 import json
 import os
 import re
 import subprocess
 import time
+from .utils import Utils, Shell_Colors
 
 class ToolSuiteInitializer:
 
@@ -30,18 +30,11 @@ class ToolSuiteInitializer:
 
         self.extract_settings()
     
-    def print_banner(self):
-        try:
-            with open(file='.assets/ascii_art.txt', mode='r') as banner_file:
-                banner = banner_file.read()
-                print(self.colors.red(banner))
-        except Exception as e:
-            print(self.colors.red('=== KEVIN (offensive toolsuite) === '))
 
     def extract_settings(self):
         config_labels = { 'user_settings': ['theme', 'seclist_path', 'dirbuster', 'dirb'],
                          'functional_settings': {
-                            'gobuster': ['gobuster_thread', 'fuzz_mode']
+                            'gobuster': ['gobuster_thread', 'fuzz_mode', 'dir_wordlist', 'vhost_wordlist']
                         }
                     }
         try:
@@ -53,6 +46,8 @@ class ToolSuiteInitializer:
                 self.DIRB_PATH = config_file['user_settings'][config_labels['user_settings'][3]]
                 self.GOBUSTER_THREAD_NUMBER = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][0]])
                 self.GOBUSTER_FUZZ_MODE = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][1]])
+                self.GOBUSTER_DIR_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][2]]
+                self.GOBUSTER_VHOST_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][3]]
 
                 self.log_actions(f'[SETTINGS] Theme Color: {self.THEME}')
                 self.log_actions(f'[SETTINGS] Seclist\'s Path: {self.SECLIST_PATH}')
@@ -60,6 +55,8 @@ class ToolSuiteInitializer:
                 self.log_actions(f'[SETTINGS] Dirb\'s Path: {self.DIRB_PATH}')
                 self.log_actions(f'[SETTINGS] Gobuster\'s thread number: {self.GOBUSTER_THREAD_NUMBER}')
                 self.log_actions(f'[SETTINGS] Gobuster fuzz mode: {self.GOBUSTER_FUZZ_MODE}')
+                self.log_actions(f'[SETTINGS] Gobuster dir wordlist: {self.GOBUSTER_DIR_WORDLIST}')
+                self.log_actions(f'[SETTINGS] Gobuster vhost wordlist: {self.GOBUSTER_VHOST_WORDLIST}')
 
         except Exception as e:
             message = f'[CRITICAL] Error: config file not found or some config is missing!\nMandatory configs: {config_labels}'
@@ -143,8 +140,15 @@ class ToolSuiteInitializer:
                 self.log_actions(f"[-] Error while saving alias: {e}")
 
 
-    def add_to_hosts(self, ip, common_name, host_name):
-        self.log_actions(message=f'[NEW_MACHINE] IP: {ip} COMMON NAME: {common_name} HOST NAME: {host_name}')
+    def add_to_hosts(self, ip = None, common_name = None, host_name = None):
+        if not host_name:
+            message = '[HOSTS FILE WRITER] Host Name is mandatory!'
+            print(self.colors.red(message))
+            self.log_actions(message)
+            exit(1)
+        if not ip:
+            ip = self.IP
+        self.log_actions(message=f'[HOSTS FILE WRITER] IP: {ip} COMMON NAME: {common_name if common_name else "---"} HOST NAME: {host_name}')
         try:
             path = '/etc/hosts'
             hsots_config = f"\n#@@@@@begin-eh-toolsuite@@@@@\n# Configurations for {host_name} (auto-added by eh-toolsuite)\n{ip} {common_name if common_name else host_name} {host_name if common_name else ''}\n#@@@@@end-eh-toolsuite@@@@@"
@@ -233,7 +237,7 @@ class ToolSuiteInitializer:
 
 
     def clean_hosts(self):
-        self.log_actions(message=f'[REMOVING_MACHINE] HOST NAME: {self.HOST_NAME}')
+        self.log_actions(message=f'[HOSTS FILE CLEANER] HOST NAME: {self.HOST_NAME}')
         try:
             path = '/etc/hosts'
             
@@ -309,13 +313,15 @@ class ToolSuiteInitializer:
             self.log_actions(f'[NMAP] {message}')
             return OS
 
-
+        utils = Utils()
         self.log_actions('[NMAP] Starting nmap routine...')
 
         full_port_path = f'{self.NMAP_PATH}/allports.txt'
         full_port_cmd = f'sudo nmap -p- --min-rate 5000 -T4 -oN {full_port_path} {self.IP}'
 
         print(self.colors.yellow('Waiting for full port scanning...'))
+        utils.run_with_spinner(name='Full port scan', cmd=full_port_cmd, shell=True)
+        '''
         subprocess.run(
             full_port_cmd,
             shell=True,
@@ -323,6 +329,7 @@ class ToolSuiteInitializer:
             text=True,
             check=True
         )        
+        '''
 
         ports = parse_open_ports(full_port_path)
         print(self.colors.yellow(f'Active ports: {ports.replace(',',', ')}'))
@@ -332,6 +339,8 @@ class ToolSuiteInitializer:
         detailed_scan_cmd = f'sudo nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
 
         print(self.colors.yellow('Scanning active ports...'))
+        utils.run_with_spinner(name='Active ports scan', cmd=detailed_scan_cmd, shell=True)
+        '''
         subprocess.run(
             detailed_scan_cmd,
             shell=True,
@@ -339,6 +348,7 @@ class ToolSuiteInitializer:
             text=True,
             check=True
         )   
+        '''
         self.log_actions('[NMAP] Detailed scan done!')
 
         udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
@@ -362,11 +372,10 @@ class ToolSuiteInitializer:
 
     def routine(self):
         try: 
-            self.print_banner()
-
             # ==== SETUP ==== #
             self.setup_workspace()
             self.alias()
+            print(self.colors.blue('Kevin need your password to modify hosts file!'))
             self.add_to_hosts(self.IP, self.COMMON_NAME, self.HOST_NAME)
             self.turn_on_vpn()
 

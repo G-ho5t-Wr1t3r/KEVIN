@@ -8,7 +8,9 @@
     "functional_settings": {
         "gobuster": {
             "gobuster_thread": "40",
-            "fuzz_mode": "0"
+            "fuzz_mode": "0",
+            "dir_wordlist": "/usr/share/wordlists/dirb/common.txt",
+            "vhost_wordlist": "/usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
         }
     }
 } 

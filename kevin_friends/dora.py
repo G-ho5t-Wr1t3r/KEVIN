@@ -1,7 +1,6 @@
-from .colors import Shell_Colors
 from .tool_suite_initializer import ToolSuiteInitializer
-import subprocess
-from .utils import Utils
+import re
+from .utils import Utils, Shell_Colors
 
 class Dora:
 
@@ -40,29 +39,65 @@ class Dora:
         self.TOOL.log_actions(f'[GOBUSTER] Exclude lengths ({mode}): {result}')
         return result
 
+    def parse_vhost_output(self) -> list[str]:
+        vhost_file = f'{self.TOOL.GOBUSTER_PATH}/vhost_out.txt'
+        found = []
+
+        try:
+            with open(vhost_file, 'r') as f:
+                for line in f:
+                    # Match "Found: <vhost> Status: ..."
+                    match = re.match(r'^Found:\s+(\S+)\s+Status:', line)
+                    if match:
+                        found.append(match.group(1))
+            message = f'[DORA] {len(found)} vhost found!'
+            self.TOOL.log_actions(message)
+            print(self.colors.green(message))
+            message = f'[DORA] URLs: {' - '.join(found)}'
+            self.TOOL.log_actions(message)
+            print(self.colors.green(message))
+        except FileNotFoundError:
+            message = '[DORA] vhost_out.txt not found!'
+            self.TOOL.log_actions(message)
+            print(self.colors.red(message))
+            exit(1)
+
+        return found
+
     def go_bastard(self):
         utils = Utils()
+        try:
+            target = self.TOOL.HOST_NAME
+            url = f'http://{target}'
+            output_dir = self.TOOL.GOBUSTER_PATH
 
-        target = self.TOOL.HOST_NAME
-        url = f'http://{target}'
-        output_dir = self.TOOL.GOBUSTER_PATH
+            exclude_dir   = self.get_exclude_length(url=url, mode='dir')
+            exclude_vhost = self.get_exclude_length(url=url, mode='vhost')
 
-        exclude_dir   = self.get_exclude_length(url=url, mode='dir')
-        exclude_vhost = self.get_exclude_length(url=url, mode='vhost')
+            commands = { #dirbuster/directory-list-2.3-medium.txt
+                'dir': f'gobuster dir -u {url} -w {self.TOOL.GOBUSTER_DIR_WORDLIST} -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
+                'vhost': f'gobuster vhost -u {url} -w {self.TOOL.GOBUSTER_VHOST_WORDLIST} --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
+                # TODO ATTUALMENTE DNS TROPPO LENTO ---> 'dns': f'gobuster dns -d {target} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --wildcard --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt'
+            }
+            if self.TOOL.GOBUSTER_FUZZ_MODE == 1:
+                commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w {self.TOOL.SECLIST_PATH}/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
 
-        commands = { #dirbuster/directory-list-2.3-medium.txt
-            'dir': f'gobuster dir -u {url} -w {self.TOOL.DIRB_PATH}/common.txt -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
-            'vhost': f'gobuster vhost -u {url} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
-            # TODO ATTUALMENTE DNS TROPPO LENTO ---> 'dns': f'gobuster dns -d {target} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --wildcard --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt'
-        }
-        if self.TOOL.GOBUSTER_FUZZ_MODE == 1:
-            commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w {self.TOOL.SECLIST_PATH}/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
+            message = '[GO_BASTARD] Starting Gobuster\'s processes'
+            print(self.colors.yellow(message))
+            self.TOOL.log_actions(message)
 
-        message = '[GO_BASTARD] Starting Gobuster\'s processes'
-        print(self.colors.yellow(message))
-        self.TOOL.log_actions(message)
-        for name, cmd in commands.items():
-            self.TOOL.log_actions(f'[DORA] Launching gobuster {name}')
-            msg_name = f'[GO_BASTARD] Executing gobuster {name}'
-            utils.run_with_spinner(msg_name, cmd)
-            self.TOOL.log_actions(f'[DORA] gobuster {name} done')
+            for name, cmd in commands.items():
+                self.TOOL.log_actions(f'[DORA] Launching gobuster {name}')
+                msg_name = f'[GO_BASTARD] Executing gobuster {name}'
+                utils.run_with_spinner(name=msg_name, cmd=cmd)
+                self.TOOL.log_actions(f'[DORA] gobuster {name} done')
+        except Exception as e:
+            message = f'[DORA] An error occurred {e}'
+            print(self.colors.red(message))
+            self.TOOL.log_actions(message)
+            exit(1)
+        
+        found = self.parse_vhost_output()
+        print(self.colors.blue('Kevin need your password to modify hosts file!'))
+        for url in found:
+            self.TOOL.add_to_hosts(host_name=url)

@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 
 import argparse
-from kevin_friends.tool_suite_initializer import ToolSuiteInitializer
 from kevin_friends.dora import Dora
+from kevin_friends.utils import Shell_Colors
+from kevin_friends.tool_suite_initializer import ToolSuiteInitializer
 
 def kevin():
+    
+    colors = Shell_Colors()
 
-    DEBUG = False
+    def print_banner():
+        try:
+            with open(file='.assets/ascii_art.txt', mode='r') as banner_file:
+                banner = banner_file.read()
+                print(colors.red(banner))
+        except Exception as e:
+            print(colors.red('=== KEVIN (offensive toolsuite) === '))
 
     parser = argparse.ArgumentParser(
         description="This program modifies your /etc/hosts file (appends <IP> <commonName> <hostName>)."
@@ -80,6 +89,10 @@ def kevin():
     CLEAN = args.clean_log
 
     try:
+        # ================================================================== #
+
+        print_banner()
+
         tool_suite = ToolSuiteInitializer(
             DEBUG=DEBUG, 
             CLEAN=CLEAN, 
@@ -97,9 +110,16 @@ def kevin():
             tool_suite=tool_suite
         )
         dora.go_bastard()
+
+        # ================================================================== #
     except Exception as e:
         print(e)
     finally:
+        import time
+        timeout = 120
+        print(f'You have {timeout}s before closing and cleaning files!')
+        time.sleep(timeout)
+        print('Adios    >^.^<')
         tool_suite.turn_off_vpn() # TODO togliere
         tool_suite.clean_hosts() # TODO togliere
 
