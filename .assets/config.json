@@ -2,5 +2,11 @@
     "user_settings": {
         "theme": "dark", 
         "seclist_path": "/usr/share/seclists/"
-    }    
+    },
+    "functional_settings": {
+        "gobuster": {
+            "gobuster_thread": "40",
+            "fuzz_mode": "0"
+        }
+    }
 } 
