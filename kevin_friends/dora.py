@@ -98,6 +98,7 @@ class Dora:
             exit(1)
         
         found = self.parse_vhost_output()
+        self.TOOL.take_note(data={utils.machine_vhosts(): found})
         print(self.colors.blue('Kevin need your password to modify hosts file!'))
         for url in found:
             self.TOOL.add_to_hosts(host_name=url)

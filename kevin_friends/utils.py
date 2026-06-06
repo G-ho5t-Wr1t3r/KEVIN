@@ -1,3 +1,4 @@
+import json
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.live import Live
 from rich.text import Text
@@ -58,3 +59,12 @@ class Utils:
         secs = int(elapsed % 60)
         print(self.colors.green(f' [+] {name} completed in {mins:02d}:{secs:02d}'))
         return proc
+
+    def active_ports_KEY(self):
+        return 'active_ports'
+
+    def machine_OS_KEY(self):
+        return 'machine_OS'
+    
+    def machine_vhosts(self):
+        return 'machine_vhosts'

@@ -27,6 +27,7 @@ class ToolSuiteInitializer:
 
         self.ALIAS = os.path.expanduser(ALIAS) if ALIAS else None
         self.PATH = os.path.abspath(__file__)
+        self.CHEATSHEET_FOLDER = os.path.abspath(path='.assets/EH_CHEATSHEETS')
 
         self.extract_settings()
     
@@ -76,12 +77,31 @@ class ToolSuiteInitializer:
         else:
             return
 
-
     def setup_workspace(self):
+        touch_info_file = f'touch {self.WORKSPACE_PATH}/info.json' 
+        touch_frank_file = f'touch {self.WORKSPACE_PATH}/frank_says.txt' 
         mkdir_nmap = f'mkdir -p {self.WORKSPACE_PATH}/nmap'
         mkdir_gobuster = f'mkdir -p {self.WORKSPACE_PATH}/gobuster'
         mkdir_notes_creds_logs = f'mkdir -p {self.WORKSPACE_PATH}/notes/creds {self.WORKSPACE_PATH}/notes/logs'
         
+        subprocess.run(
+                    touch_info_file,
+                    shell = True, 
+                    capture_output = True, 
+                    check = False
+                )
+        self.log_actions('[+] Successfully created info.json')
+        self.INFO_FILE = f'{self.WORKSPACE_PATH}/info.json'
+
+        subprocess.run(
+                    touch_frank_file,
+                    shell = True, 
+                    capture_output = True, 
+                    check = False
+                )
+        self.log_actions('[+] Successfully created frank_says.txt')
+        self.FRANK_FILE = f'{self.WORKSPACE_PATH}/frank_says.txt'
+
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/nmap'):
                 subprocess.run(
@@ -126,6 +146,54 @@ class ToolSuiteInitializer:
         except Exception as e:
             print(self.colors.red('[-] Error while creating notes and nested dirs'))
             exit(1)
+
+
+    def take_note(self, data: dict = None):
+        if not data:
+            message = '[NOTE INFO] Cannot process empty informations'
+            print(self.colors.red(message))
+            self.log_actions(message)
+            return
+
+        try:
+            with open(self.INFO_FILE, 'r') as info_file:
+                informations = json.load(info_file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            informations = {}
+
+        try:
+            for key, value in data.items():
+                informations[key] = value
+
+            with open(self.INFO_FILE, 'w') as info_file:
+                json.dump(informations, info_file, indent=4)
+        except Exception as e:
+            message = f'[NOTE INFO] Error: {e}'
+            print(self.colors.red(message))
+            self.log_actions(message)
+            exit(1)
+
+
+    def get_info(self, info: str = None):
+        if not info:
+            return None
+
+        try:
+            with open(self.INFO_FILE, 'r') as info_file:
+                informations = json.load(info_file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            message = f'[INFO GETTER] Invalid or missing info file: {e}'
+            print(self.colors.red(message))
+            self.log_actions(message)
+            return None
+
+        if info not in informations:
+            message = f'[INFO GETTER] Key "{info}" not found in info file'
+            print(self.colors.red(message))
+            self.log_actions(message)
+            return None
+
+        return informations[info]
 
 
     def alias(self):
@@ -334,6 +402,7 @@ class ToolSuiteInitializer:
         ports = parse_open_ports(full_port_path)
         print(self.colors.yellow(f'Active ports: {ports.replace(',',', ')}'))
         self.log_actions(f'[NMAP] Full scan done, active ports: {ports.replace(',',', ')}')
+        self.take_note(data={utils.active_ports_KEY(): ports.split(',')})
 
         detailed_scan_path = f'{self.NMAP_PATH}/detailded'
         detailed_scan_cmd = f'sudo nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
@@ -366,21 +435,18 @@ class ToolSuiteInitializer:
             self.log_actions('[NMAP] UDP scan done!')
 
         self.OS = detect_OS()
+        self.take_note(data={utils.machine_OS_KEY(): self.OS})
 
         # TODO implementare azioni utili!
 
 
-    def routine(self):
+    def setup(self):
         try: 
-            # ==== SETUP ==== #
             self.setup_workspace()
             self.alias()
             print(self.colors.blue('Kevin need your password to modify hosts file!'))
             self.add_to_hosts(self.IP, self.COMMON_NAME, self.HOST_NAME)
             self.turn_on_vpn()
-
-
             self.test_connection()
-            self.call_nmap()
         except Exception as e:
             print(self.colors.red(e))   

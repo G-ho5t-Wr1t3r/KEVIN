@@ -2,6 +2,7 @@
 
 import argparse
 from kevin_friends.dora import Dora
+from kevin_friends.frank import Frank
 from kevin_friends.utils import Shell_Colors
 from kevin_friends.tool_suite_initializer import ToolSuiteInitializer
 
@@ -38,6 +39,24 @@ def kevin():
         type=str,
         required=True,
         help="Machine's Host Name"
+    )
+    parser.add_argument(
+        "--nmap",
+        action="store_true",
+        required=False,
+        help='Runs nmap scan'
+    )
+    parser.add_argument(
+        "--dora",
+        action="store_true",
+        required=False,
+        help='To call Dora (the bastard)'
+    )
+    parser.add_argument(
+        "--frank",
+        action="store_true",
+        required=False,
+        help='To raise Frank (the beast)'
     )
     parser.add_argument(
         "--udp",
@@ -83,6 +102,9 @@ def kevin():
     host_name = args.host_name
     DEBUG = args.d
     udp_scan = args.udp
+    nmap_scan = args.nmap
+    call_dora = args.dora
+    raise_frank = args.frank
     alias_path = args.alias # es. --alias '~/.bashrc'
     workspace_path = args.workspace # es. --workspace '~/EH'
     vpn_path = args.vpn
@@ -104,12 +126,20 @@ def kevin():
             VPN_PATH=vpn_path, 
             ALIAS=alias_path
         )
-        tool_suite.routine()
+        tool_suite.setup()
+        if nmap_scan: tool_suite.call_nmap()
         
-        dora = Dora(
-            tool_suite=tool_suite
-        )
-        dora.go_bastard()
+        if call_dora:
+            dora = Dora(
+                tool_suite=tool_suite
+            )
+            dora.go_bastard()
+
+        if raise_frank:
+            frank = Frank(
+                tool_suite=tool_suite
+            )
+            frank.enlight_me()
 
         # ================================================================== #
     except Exception as e:
