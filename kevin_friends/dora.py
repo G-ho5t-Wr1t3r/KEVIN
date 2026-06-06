@@ -1,6 +1,7 @@
 from .colors import Shell_Colors
 from .tool_suite_initializer import ToolSuiteInitializer
 import subprocess
+from .utils import Utils
 
 class Dora:
 
@@ -40,6 +41,8 @@ class Dora:
         return result
 
     def go_bastard(self):
+        utils = Utils()
+
         target = self.TOOL.HOST_NAME
         url = f'http://{target}'
         output_dir = self.TOOL.GOBUSTER_PATH
@@ -47,25 +50,19 @@ class Dora:
         exclude_dir   = self.get_exclude_length(url=url, mode='dir')
         exclude_vhost = self.get_exclude_length(url=url, mode='vhost')
 
-        commands = {
-            'dir': f'gobuster dir -u {url} -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
-            'vhost': f'gobuster vhost -u {url} -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
-            'dns': f'gobuster dns -d {target} -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt',
+        commands = { #dirbuster/directory-list-2.3-medium.txt
+            'dir': f'gobuster dir -u {url} -w {self.TOOL.DIRB_PATH}/common.txt -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
+            'vhost': f'gobuster vhost -u {url} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
+            # TODO ATTUALMENTE DNS TROPPO LENTO ---> 'dns': f'gobuster dns -d {target} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --wildcard --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt'
         }
         if self.TOOL.GOBUSTER_FUZZ_MODE == 1:
-            commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
+            commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w {self.TOOL.SECLIST_PATH}/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
 
-        processes = []
+        message = '[GO_BASTARD] Starting Gobuster\'s processes'
+        print(self.colors.yellow(message))
+        self.TOOL.log_actions(message)
         for name, cmd in commands.items():
-            message = f'[*] Starting gobuster {name}...'
-            print(self.colors.yellow(message))
-            self.TOOL.log_actions(message)
-            proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            processes.append((name, proc))
-            self.TOOL.log_actions(f'[DORA - GOBASTARD] Launched {name}')
-
-        for name, proc in processes:
-            proc.wait()
-            message = f'{name} completed successfully!'
-            print(self.colors.green(f'[+] {message}'))
-            self.TOOL.log_actions(f'[DORA - GOBASTARD] {message}')
+            self.TOOL.log_actions(f'[DORA] Launching gobuster {name}')
+            msg_name = f'[GO_BASTARD] Executing gobuster {name}'
+            utils.run_with_spinner(msg_name, cmd)
+            self.TOOL.log_actions(f'[DORA] gobuster {name} done')

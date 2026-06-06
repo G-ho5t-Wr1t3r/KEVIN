@@ -1,7 +1,9 @@
 { 
     "user_settings": {
         "theme": "dark", 
-        "seclist_path": "/usr/share/seclists/"
+        "seclist_path": "/usr/share/wordlists/seclists",
+        "dirbuster": "/usr/share/wordlists/dirbuster",
+        "dirb": "/usr/share/wordlists/dirb"
     },
     "functional_settings": {
         "gobuster": {

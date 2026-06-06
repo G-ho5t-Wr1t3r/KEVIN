@@ -39,7 +39,7 @@ class ToolSuiteInitializer:
             print(self.colors.red('=== KEVIN (offensive toolsuite) === '))
 
     def extract_settings(self):
-        config_labels = { 'user_settings': ['theme', 'seclist_path'],
+        config_labels = { 'user_settings': ['theme', 'seclist_path', 'dirbuster', 'dirb'],
                          'functional_settings': {
                             'gobuster': ['gobuster_thread', 'fuzz_mode']
                         }
@@ -49,11 +49,15 @@ class ToolSuiteInitializer:
                 config_file = json.load(config_file)
                 self.THEME = config_file['user_settings'][config_labels['user_settings'][0]]
                 self.SECLIST_PATH = config_file['user_settings'][config_labels['user_settings'][1]]
+                self.DIRBUSTER_PATH = config_file['user_settings'][config_labels['user_settings'][2]]
+                self.DIRB_PATH = config_file['user_settings'][config_labels['user_settings'][3]]
                 self.GOBUSTER_THREAD_NUMBER = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][0]])
                 self.GOBUSTER_FUZZ_MODE = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][1]])
 
                 self.log_actions(f'[SETTINGS] Theme Color: {self.THEME}')
                 self.log_actions(f'[SETTINGS] Seclist\'s Path: {self.SECLIST_PATH}')
+                self.log_actions(f'[SETTINGS] Dirbuster\'s Path: {self.DIRBUSTER_PATH}')
+                self.log_actions(f'[SETTINGS] Dirb\'s Path: {self.DIRB_PATH}')
                 self.log_actions(f'[SETTINGS] Gobuster\'s thread number: {self.GOBUSTER_THREAD_NUMBER}')
                 self.log_actions(f'[SETTINGS] Gobuster fuzz mode: {self.GOBUSTER_FUZZ_MODE}')
 
@@ -322,7 +326,7 @@ class ToolSuiteInitializer:
 
         ports = parse_open_ports(full_port_path)
         print(self.colors.yellow(f'Active ports: {ports.replace(',',', ')}'))
-        self.log_actions(f'[NMAP] Full scan done, active ports: {ports}')
+        self.log_actions(f'[NMAP] Full scan done, active ports: {ports.replace(',',', ')}')
 
         detailed_scan_path = f'{self.NMAP_PATH}/detailded'
         detailed_scan_cmd = f'sudo nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
