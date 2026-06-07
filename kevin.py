@@ -5,6 +5,7 @@ from kevin_friends.dora import Dora
 from kevin_friends.frank import Frank
 from kevin_friends.utils import Shell_Colors
 from kevin_friends.tool_suite_initializer import ToolSuiteInitializer
+import os
 
 def kevin():
     
@@ -118,6 +119,7 @@ def kevin():
         tool_suite = ToolSuiteInitializer(
             DEBUG=DEBUG, 
             CLEAN=CLEAN, 
+            base_path=os.getcwd(),
             IP=ip, 
             COMMON_NAME=common_name, 
             HOST_NAME=host_name, 

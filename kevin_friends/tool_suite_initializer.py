@@ -9,7 +9,7 @@ from .utils import Utils, Shell_Colors
 
 class ToolSuiteInitializer:
 
-    def __init__(self, DEBUG, CLEAN, IP: str, COMMON_NAME: str, HOST_NAME: str, UDP_SCAN, WORKSPACE_PATH: str, VPN_PATH: str, ALIAS: str):
+    def __init__(self, DEBUG, CLEAN, base_path, IP: str, COMMON_NAME: str, HOST_NAME: str, UDP_SCAN, WORKSPACE_PATH: str, VPN_PATH: str, ALIAS: str):
         self.colors = Shell_Colors()
         self.DEBUG = DEBUG
         self.CLEAN = CLEAN
@@ -27,7 +27,7 @@ class ToolSuiteInitializer:
             self.VPN = 'WG'
 
         self.ALIAS = os.path.expanduser(ALIAS) if ALIAS else None
-        self.PATH = os.path.abspath(__file__)
+        self.PATH = base_path
         self.CHEATSHEET_FOLDER = os.path.abspath(path='.assets/EH_CHEATSHEETS')
 
         self.extract_settings()
@@ -84,6 +84,7 @@ class ToolSuiteInitializer:
         mkdir_nmap = f'mkdir -p {self.WORKSPACE_PATH}/nmap'
         mkdir_gobuster = f'mkdir -p {self.WORKSPACE_PATH}/gobuster'
         mkdir_notes_creds_logs = f'mkdir -p {self.WORKSPACE_PATH}/notes/creds {self.WORKSPACE_PATH}/notes/logs'
+        mkdir_pocs = f'mkdir -p {self.WORKSPACE_PATH}/PoCs'
         
         subprocess.run(
                     touch_info_file,
@@ -115,7 +116,6 @@ class ToolSuiteInitializer:
             self.NMAP_PATH = f'{self.WORKSPACE_PATH}/nmap'
         except Exception as e:
             raise RuntimeError(self.colors.red('[-] Error while creating nmap dir'))
-            return False
         
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/gobuster'):
@@ -129,7 +129,6 @@ class ToolSuiteInitializer:
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
             raise RuntimeError(self.colors.red('[-] Error while creating gobuster dir'))
-            return False
         
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/notes'): 
@@ -146,7 +145,19 @@ class ToolSuiteInitializer:
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
             raise RuntimeError(self.colors.red('[-] Error while creating notes and nested dirs'))
-            return False
+        
+        try:
+            if not os.path.exists(f'{self.WORKSPACE_PATH}/PoCs'):
+                subprocess.run(
+                    mkdir_pocs,
+                    shell = True, 
+                    capture_output = True, 
+                    check = True
+                )
+                self.log_actions('[+] Successfully created PoCs dir')
+            self.NMAP_PATH = f'{self.WORKSPACE_PATH}/PoCs'
+        except Exception as e:
+            raise RuntimeError(self.colors.red('[-] Error while creating PoCs dir'))
         return True
 
 
@@ -202,7 +213,7 @@ class ToolSuiteInitializer:
             self.log_actions(message=f'[INFO] Creating alias in {self.ALIAS}')
             try:
                 with open (file=self.ALIAS, mode='a') as config_file:
-                    alias_cmd = f"\n# EH-Toolsuite's Alias\nalias kevin='python3 \"{self.PATH}\"'\n"
+                    alias_cmd = f"\n# EH-Toolsuite's Alias\nalias kevin='python3 \"{self.PATH}/kevin.py\"'\n"
                     config_file.write(alias_cmd)
                     self.log_actions(f"[+] Added alias to {self.ALIAS}")
                 return True
