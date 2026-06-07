@@ -31,7 +31,7 @@ def kevin():
     
     def launch_gui():
         from GUI.pretty_kevin import launch_gui as start_gui
-        start_gui()
+        start_gui(None)
     
     if len(sys.argv) == 1:
         launch_gui()
@@ -102,7 +102,7 @@ def kevin():
         help='Creates alias "kevin" in specified file'
     )
     parser.add_argument(
-        "-gui",
+        "--gui",
         action="store_true",
         required=False,
         help="Opens Kevin's GUI"
@@ -127,7 +127,7 @@ def kevin():
     host_name = args.host_name 
     DEBUG = args.d
     udp_scan = args.udp
-    nmap_scan = args.nmap
+    nmap_scan = True #args.nmap
     dora_opt = args.dora
     raise_frank = args.frank
     alias_path = args.alias # es. --alias '~/.bashrc'
@@ -136,6 +136,11 @@ def kevin():
     CLEAN = args.clean_log
 
     gui = args.gui # TODO gui senza setup
+
+    if gui:
+        from GUI.pretty_kevin import launch_gui as start_gui
+        start_gui(args)
+        return
 
     try:
         # ================================================================== #

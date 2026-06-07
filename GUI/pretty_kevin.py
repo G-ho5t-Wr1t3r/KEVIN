@@ -19,18 +19,8 @@ from kevin_friends.dora import Dora
 from kevin_friends.frank import Frank
 from kevin_friends.cesare import Cesare
 
-class GUIStdin:
-    def __init__(self, queue):
-        self.queue = queue
-    def readline(self):
-        return self.queue.get()
-    def read(self, n=-1):
-        return self.queue.get()
-    def isatty(self):
-        return False
-
 class KevinGUI:
-    def __init__(self, root):
+    def __init__(self, root, args=None):
         self.root = root
         self.root.title("KEVIN - Offensive Toolsuite")
         self.root.geometry("1100x850")
@@ -47,7 +37,9 @@ class KevinGUI:
         self.tool_suite = None
         self.active_jobs = {} 
         self.log_queue = queue.Queue()
-        self.stdin_queue = queue.Queue()
+        
+        # Implement a real OS pipe for stdin to fix 'fileno' issue
+        self.stdin_read_fd, self.stdin_write_fd = os.pipe()
         
         # Redirect stdout/stderr/stdin
         self.original_stdout = sys.stdout
@@ -55,10 +47,46 @@ class KevinGUI:
         self.original_stdin = sys.stdin
         sys.stdout = self
         sys.stderr = self
-        sys.stdin = GUIStdin(self.stdin_queue)
+        sys.stdin = os.fdopen(self.stdin_read_fd, 'r')
         
-        self.create_setup_screen()
+        # Skip setup only if explicitly requested via CLI args (e.g. -gui flag)
+        if args and hasattr(args, 'gui') and args.gui:
+            self.create_main_window()
+            self.init_from_args(args)
+        else:
+            self.create_setup_screen()
+            
         self.root.after(100, self.process_log_queue)
+
+    def init_from_args(self, args):
+        try:
+            self.args_nmap_requested = args.nmap
+            self.tool_suite = ToolSuiteInitializer(
+                DEBUG=args.d,
+                CLEAN=args.clean_log,
+                base_path=os.getcwd(),
+                IP=args.ip,
+                COMMON_NAME=args.common_name,
+                HOST_NAME=args.host_name,
+                UDP_SCAN=args.udp,
+                WORKSPACE_PATH=args.workspace,
+                VPN_PATH=args.vpn,
+                ALIAS=args.alias
+            )
+            
+            # Monkey patch log_actions
+            original_log = self.tool_suite.log_actions
+            def patched_log(message):
+                original_log(message)
+                self.log_queue.put(message)
+            self.tool_suite.log_actions = patched_log
+            
+            self.add_job("INIT", "Workspace & Connection (CLI Args)")
+            threading.Thread(target=self.init_task_thread, daemon=True).start()
+            
+        except Exception as e:
+            self.show_error(f"Failed to initialize from CLI: {e}")
+            self.create_setup_screen()
 
     def write(self, message):
         if message:
@@ -279,8 +307,12 @@ class KevinGUI:
             success = self.tool_suite.setup()
             if success:
                 self.update_job("INIT", "done")
-                # Auto start nmap
-                self.start_nmap_task()
+                # Auto start nmap if it was checked in GUI or passed in CLI
+                if hasattr(self, 'setup_vars'):
+                    if self.setup_vars["nmap"].get():
+                        self.start_nmap_task()
+                elif hasattr(self, 'args_nmap_requested') and self.args_nmap_requested:
+                    self.start_nmap_task()
             else:
                 self.update_job("INIT", "error")
         except Exception as e:
@@ -350,7 +382,7 @@ class KevinGUI:
         cmd = self.terminal_input.get()
         if cmd:
             self.log_queue.put(f"INPUT > {cmd}")
-            self.stdin_queue.put(cmd + "\n")
+            os.write(self.stdin_write_fd, (cmd + "\n").encode())
             self.terminal_input.delete(0, tk.END)
 
     def setup_overview_tab(self):
@@ -801,9 +833,9 @@ class KevinGUI:
             self.log_text.config(state="disabled")
         self.root.after(100, self.process_log_queue)
 
-def launch_gui():
+def launch_gui(args=None):
     root = tk.Tk()
-    app = KevinGUI(root)
+    app = KevinGUI(root, args)
     def on_closing():
         if app.tool_suite:
             if messagebox.askokcancel("QUIT KEVIN", "Do you want to shut down Kevin and clean up?"):
