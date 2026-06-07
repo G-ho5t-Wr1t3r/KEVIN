@@ -8,8 +8,7 @@ class Frank:
         self.utils = Utils()
         self.colors = Shell_Colors()
         if not tool_suite:
-            print(self.colors.red('Cannot rise Frank for nothing!'))
-            exit(1)
+            raise RuntimeError(self.colors.red('Cannot rise Frank for nothing!'))
         self.TOOL = tool_suite
         self.PORTS = [int(port) for port in self.TOOL.get_info(self.utils.active_ports_KEY())]
         self.CHEATSHEETS = self.map_files()
@@ -81,14 +80,17 @@ class Frank:
                 info = PORT_MAP[port]
                 result[port] = info
                 os_tag = f"[{info['os'].upper()}]" if info['os'] != 'any' else ''
-                file_content += f'  {port:<6} {info["service"]:<15} {os_tag:<10} → {info["note"]}\n'
+                file_content += f'  {port:<6} {info["service"]:<15} {os_tag:<10} → {info["note"]:<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                #file_content += f'  {port:<6} {info["service"]:<15} {os_tag:<10} → {info["note"]}\n'
             else:
                 if 49152 <= port <= 65535:
                     result[port] = {'service': 'RPC-Dynamic', 'os': 'windows', 'note': 'Windows RPC dinamyc ports'}
-                    file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → RPC dinamyc ports\n'
+                    file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → {"RPC dinamyc ports":<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                    #file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → RPC dinamyc ports\n'
                 else:
                     unknown.append(port)
-                    file_content += f'  {port:<6} UNKNOWN        [-]        → Manual Investigation\n'
+                    file_content += f'  {port:<6} UNKNOWN        [-]        → {"Manual Investigation":<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                    #file_content += f'  {port:<6} UNKNOWN        [-]        → Manual Investigation\n'
 
         if unknown:
             self.TOOL.log_actions(f'[LABEL_PORTS] Unknow port to investigate: {unknown}')

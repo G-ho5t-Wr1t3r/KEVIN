@@ -38,7 +38,7 @@ class Utils:
     def run_with_spinner(self, name: str, cmd: str, shell: bool = False):
 
         proc = subprocess.Popen(
-            shlex.split(cmd),
+            cmd if shell else shlex.split(cmd),
             shell=shell,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL

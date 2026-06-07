@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import time
+import threading
 from .utils import Utils, Shell_Colors
 
 class ToolSuiteInitializer:
@@ -63,7 +64,7 @@ class ToolSuiteInitializer:
             message = f'[CRITICAL] Error: config file not found or some config is missing!\nMandatory configs: {config_labels}'
             print(self.colors.red(message))
             self.log_actions(f'{message}\n{e}')
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
 
 
     def log_actions(self, message: str):
@@ -77,7 +78,7 @@ class ToolSuiteInitializer:
         else:
             return
 
-    def setup_workspace(self):
+    def setup_workspace(self) -> bool:
         touch_info_file = f'touch {self.WORKSPACE_PATH}/info.json' 
         touch_frank_file = f'touch {self.WORKSPACE_PATH}/frank_says.txt' 
         mkdir_nmap = f'mkdir -p {self.WORKSPACE_PATH}/nmap'
@@ -113,9 +114,9 @@ class ToolSuiteInitializer:
                 self.log_actions('[+] Successfully created nmap dir')
             self.NMAP_PATH = f'{self.WORKSPACE_PATH}/nmap'
         except Exception as e:
-            print(self.colors.red('[-] Error while creating nmap dir'))
-            exit(1)
-
+            raise RuntimeError(self.colors.red('[-] Error while creating nmap dir'))
+            return False
+        
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/gobuster'):
                 subprocess.run(
@@ -127,9 +128,9 @@ class ToolSuiteInitializer:
                 self.log_actions('[+] Successfully created gobuster dir')
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
-            print(self.colors.red('[-] Error while creating gobuster dir'))
-            exit(1)
-
+            raise RuntimeError(self.colors.red('[-] Error while creating gobuster dir'))
+            return False
+        
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/notes'): 
                 subprocess.run(
@@ -144,8 +145,9 @@ class ToolSuiteInitializer:
                 self.log_actions('[+] Successfully created notes, creds and logs dirs')
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
-            print(self.colors.red('[-] Error while creating notes and nested dirs'))
-            exit(1)
+            raise RuntimeError(self.colors.red('[-] Error while creating notes and nested dirs'))
+            return False
+        return True
 
 
     def take_note(self, data: dict = None):
@@ -169,9 +171,8 @@ class ToolSuiteInitializer:
                 json.dump(informations, info_file, indent=4)
         except Exception as e:
             message = f'[NOTE INFO] Error: {e}'
-            print(self.colors.red(message))
             self.log_actions(message)
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
 
 
     def get_info(self, info: str = None):
@@ -196,7 +197,7 @@ class ToolSuiteInitializer:
         return informations[info]
 
 
-    def alias(self):
+    def alias(self) -> bool:
         if self.ALIAS:
             self.log_actions(message=f'[INFO] Creating alias in {self.ALIAS}')
             try:
@@ -204,16 +205,30 @@ class ToolSuiteInitializer:
                     alias_cmd = f"\n# EH-Toolsuite's Alias\nalias kevin='python3 \"{self.PATH}\"'\n"
                     config_file.write(alias_cmd)
                     self.log_actions(f"[+] Added alias to {self.ALIAS}")
+                return True
             except Exception as e:
                 self.log_actions(f"[-] Error while saving alias: {e}")
+                return False
 
+    def keep_sudo_alive(self):
+        '''
+        This function keeps alive sudo util the tool is running
+        '''
+        def refresh():
+            while True:
+                result = subprocess.run('sudo -v', shell=True, capture_output=True)
+                if result.returncode != 0:
+                    self.log_actions('[VPN] sudo -v refresh failed!')
+                time.sleep(60)
 
-    def add_to_hosts(self, ip = None, common_name = None, host_name = None):
+        t = threading.Thread(target=refresh, daemon=True)
+        t.start()
+
+    def add_to_hosts(self, ip = None, common_name = None, host_name = None) -> bool:
         if not host_name:
             message = '[HOSTS FILE WRITER] Host Name is mandatory!'
-            print(self.colors.red(message))
             self.log_actions(message)
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
         if not ip:
             ip = self.IP
         self.log_actions(message=f'[HOSTS FILE WRITER] IP: {ip} COMMON NAME: {common_name if common_name else "---"} HOST NAME: {host_name}')
@@ -226,11 +241,12 @@ class ToolSuiteInitializer:
             process.communicate(input=hsots_config)
             
             self.log_actions(f"[+] Host added to {path}")
+            return True
         except Exception as e:
             self.log_actions(f"[-] Error while saving host configuration: {e}")
+            return False
 
-
-    def turn_on_vpn(self):
+    def turn_on_vpn(self) -> bool:
         self.log_actions(f'[VPN] VPS type: {self.VPN}')
         if self.VPN == 'OPENVPN':
             cmd = ['sudo', 'openvpn', '--config', self.VPN_PATH]
@@ -244,16 +260,20 @@ class ToolSuiteInitializer:
             text=True,                
             bufsize=1 # pop out the row when it comes
         )
-        self._wait_for_vpn()
+        try:
+            response = self._wait_for_vpn()
+            return response
+        except Exception as e:
+            return False
 
-    def _wait_for_vpn(self):
+    def _wait_for_vpn(self) -> bool:
         print(self.colors.yellow('[*] Waiting for VPN connection...'))
         if self.VPN == 'OPENVPN':
             for line in iter(self.vpn_process.stdout.readline, ''): 
                 self.log_actions(f'[VPN] {line.strip()}')
                 if 'Initialization Sequence Completed' in line:
                     print(self.colors.green('[+] VPN connected!'))
-                    return
+                    return True
             
             # Fallback if you are lucky
             timeout = 30
@@ -264,19 +284,19 @@ class ToolSuiteInitializer:
                 )
                 if result.returncode == 0:
                     self.log_actions(f'[+] VPN connected! (after {attempt+1}s)')
-                    return
+                    return True
                 time.sleep(1)
             
             self.log_actions(f'[-] VPN unreachable after {timeout}s')
             message = '[-] Failed connection to VPN'
             self.log_actions(message)
-            print(self.colors.red(message))
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
         else:
             time.sleep(2)
             message = '[+] VPN connected!' 
             self.log_actions(message)
             print(self.colors.green(message))
+            return True
 
 
     def turn_off_vpn(self):
@@ -286,7 +306,7 @@ class ToolSuiteInitializer:
             self.vpn_process = None
 
 
-    def test_connection(self):
+    def test_connection(self) -> bool:
         cmd = f"ping -c 4 '{self.HOST_NAME}'"
         response = subprocess.run(
             cmd, 
@@ -297,11 +317,11 @@ class ToolSuiteInitializer:
         output = response.stdout.decode()
         if '4 received' not in output:
             self.log_actions(f'[TEST CONNECTION] {output}')
-            print(self.colors.red(f'[+] Host {self.HOST_NAME} is unreachable! Aborting...'))
-            exit(1)
+            raise RuntimeError(self.colors.red(f'[+] Host {self.HOST_NAME} is unreachable! Aborting...'))
         else:
             self.log_actions(f'[TEST CONNECTION] {output}')
             print(self.colors.green(f'[+] Host {self.HOST_NAME} successfully reached!'))
+            return True
 
 
     def clean_hosts(self):
@@ -359,6 +379,7 @@ class ToolSuiteInitializer:
             return ','.join(ports)
         
         def detect_OS():
+            print(self.colors.yellow('Detecting OS...'))
             detect_OS_cmd = f'sudo nmap -O --osscan-guess {self.IP}'
             response = subprocess.run(
                 detect_OS_cmd,
@@ -377,7 +398,7 @@ class ToolSuiteInitializer:
                 OS = 'Exotic_Banana' # TODO Not supported yet!
             
             message = f'Machine OS: {OS}'
-            print(self.colors.yellow(message))
+            print(self.colors.green(f' [+] {message}'))
             self.log_actions(f'[NMAP] {message}')
             return OS
 
@@ -420,33 +441,38 @@ class ToolSuiteInitializer:
         '''
         self.log_actions('[NMAP] Detailed scan done!')
 
-        udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
-        udp_scan_cmd = f'sudo nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
-
         if self.UDP_SCAN:
+            udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
+            udp_scan_cmd = f'sudo nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
             print(self.colors.yellow('Waiting for UDP scanning...'))
+            utils.run_with_spinner(name='UDP ports scan', cmd=udp_scan_cmd, shell=True)
+            '''
             subprocess.run(
                 udp_scan_cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
                 check=True
-            )   
+            )
+            '''   
             self.log_actions('[NMAP] UDP scan done!')
 
         self.OS = detect_OS()
         self.take_note(data={utils.machine_OS_KEY(): self.OS})
 
-        # TODO implementare azioni utili!
-
 
     def setup(self):
         try: 
-            self.setup_workspace()
-            self.alias()
+            setup = self.setup_workspace()
+            alias = self.alias()
             print(self.colors.blue('Kevin need your password to modify hosts file!'))
-            self.add_to_hosts(self.IP, self.COMMON_NAME, self.HOST_NAME)
-            self.turn_on_vpn()
-            self.test_connection()
+            subprocess.run('sudo -v', shell=True, check=True)  
+            self.keep_sudo_alive()
+            
+            hosts = self.add_to_hosts(self.IP, self.COMMON_NAME, self.HOST_NAME)
+            vpn = self.turn_on_vpn()
+            connection = self.test_connection()
+            return setup and alias and hosts and vpn and connection
         except Exception as e:
-            print(self.colors.red(e))   
+            print(self.colors.red(e))  
+            return False 

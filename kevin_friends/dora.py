@@ -7,8 +7,7 @@ class Dora:
     def __init__(self, tool_suite: ToolSuiteInitializer):
         self.colors = Shell_Colors()
         if not tool_suite:
-            print(self.colors.red('Cannot call Dora with None configs!'))
-            exit(1)
+            raise RuntimeError(self.colors.red('Cannot call Dora with None configs!'))
         self.TOOL = tool_suite
         self.THREAD_NUMBER = tool_suite.GOBUSTER_THREAD_NUMBER
 
@@ -18,7 +17,7 @@ class Dora:
             message = 'Dora cannot handle null url, exiting...'
             print(self.colors.red(message))
             self.TOOL.log_actions(f'[DORA]: {message} -> get_exclude_length')
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
             
         import requests
 
@@ -60,7 +59,7 @@ class Dora:
             message = '[DORA] vhost_out.txt not found!'
             self.TOOL.log_actions(message)
             print(self.colors.red(message))
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
 
         return found
 
@@ -95,7 +94,7 @@ class Dora:
             message = f'[DORA] An error occurred {e}'
             print(self.colors.red(message))
             self.TOOL.log_actions(message)
-            exit(1)
+            raise RuntimeError(self.colors.red(message))
         
         found = self.parse_vhost_output()
         self.TOOL.take_note(data={utils.machine_vhosts(): found})

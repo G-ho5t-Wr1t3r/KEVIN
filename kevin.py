@@ -77,11 +77,6 @@ def kevin():
         help='VPN\'s path'
     )
     parser.add_argument(
-        "--clean-log",
-        action="store_true",
-        help='Overwrites the existing log file'
-    )
-    parser.add_argument(
         "--alias",
         type=str,
         required=False,
@@ -92,6 +87,11 @@ def kevin():
         action="store_true",
         required=False,
         help='Debug mode'
+    )
+    parser.add_argument(
+        "--clean-log",
+        action="store_true",
+        help='Overwrites the existing log file'
     )
 
     
@@ -126,7 +126,8 @@ def kevin():
             VPN_PATH=vpn_path, 
             ALIAS=alias_path
         )
-        tool_suite.setup()
+        setup = tool_suite.setup()
+        if not setup: raise RuntimeError(colors.red('Something went wrong while setting-up the environment!'))
         if nmap_scan: tool_suite.call_nmap()
         
         if call_dora:
@@ -145,13 +146,14 @@ def kevin():
     except Exception as e:
         print(e)
     finally:
-        import time
-        timeout = 120
-        print(f'You have {timeout}s before closing and cleaning files!')
-        time.sleep(timeout)
-        print('Adios    >^.^<')
-        tool_suite.turn_off_vpn() # TODO togliere
-        tool_suite.clean_hosts() # TODO togliere
+        close = False
+        while not close:
+            choice = str(input('Shut Down? (y/N) '))
+            if choice.lower() == 'y':
+                close = True
+                print('Adios    >^.^<')
+                tool_suite.turn_off_vpn() # TODO togliere
+                tool_suite.clean_hosts() # TODO togliere
 
 if __name__ == "__main__":
     kevin()
