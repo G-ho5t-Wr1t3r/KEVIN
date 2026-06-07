@@ -99,8 +99,10 @@ class Dora:
             self.TOOL.log_actions(message)
             raise RuntimeError(self.colors.red(message))
         
-        found = self.parse_vhost_output()
-        self.TOOL.take_note(data={utils.machine_vhosts(): found})
+        found_vhost = self.parse_vhost_output()
+        found_dirs = [] #TODO self.parse_dirs_output()
+        self.TOOL.take_note(data={utils.machine_vhosts(): found_vhost})
+        self.TOOL.take_note(data={utils.machine_dirs(): found_dirs})
         print(self.colors.blue('Kevin need your password to modify hosts file!'))
-        for url in found:
+        for url in found_vhost:
             self.TOOL.add_to_hosts(host_name=url)

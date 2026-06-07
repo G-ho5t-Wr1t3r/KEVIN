@@ -83,3 +83,6 @@ class Utils:
     
     def machine_vhosts(self):
         return 'machine_vhosts'
+    
+    def machine_dirs(self):
+        return 'machine_dirs'
