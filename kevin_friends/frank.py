@@ -75,23 +75,24 @@ class Frank:
         result = {}
         unknown = []
         file_content = ''
+        message = ''
 
         for port in self.PORTS:
             if port in PORT_MAP:
                 info = PORT_MAP[port]
                 result[port] = info
                 os_tag = f"[{info['os'].upper()}]" if info['os'] != 'any' else ''
-                file_content += f'  {port:<6} {info["service"]:<15} {os_tag:<10} → {info["note"]:<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
-                #file_content += f'  {port:<6} {info["service"]:<15} {os_tag:<10} → {info["note"]}\n'
+                message += f'  {port:<6} {info["service"]:<8} {os_tag:<8} → {info["note"]:<70} → CHEATSHEET: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                file_content += f'  {port:<6} {info["service"]:<8} {os_tag:<8} → {info["note"]:<70} → CHEATSHEET: {info["cheatsheet"].split('/')[-1] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
             else:
                 if 49152 <= port <= 65535:
                     result[port] = {'service': 'RPC-Dynamic', 'os': 'windows', 'note': 'Windows RPC dinamyc ports'}
-                    file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → {"RPC dinamyc ports":<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
-                    #file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → RPC dinamyc ports\n'
+                    message += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → {"RPC dinamyc ports":<70} → CHEATSHEET: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                    file_content += f'  {port:<6} RPC-Dynamic    [WINDOWS]  → {"RPC dinamyc ports":<70} → CHEATSHEET: {info["cheatsheet"].split('/')[-1] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
                 else:
                     unknown.append(port)
-                    file_content += f'  {port:<6} UNKNOWN        [-]        → {"Manual Investigation":<100} → CHEATSHEERT: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
-                    #file_content += f'  {port:<6} UNKNOWN        [-]        → Manual Investigation\n'
+                    message += f'  {port:<6} UNKNOWN        [-]        → {"Manual Investigation":<70} → CHEATSHEET: {info["cheatsheet"] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
+                    file_content += f'  {port:<6} UNKNOWN        [-]        → {"Manual Investigation":<70} → CHEATSHEET: {info["cheatsheet"].split('/')[-1] if info["cheatsheet"] else 'No cheatsheet avaliable, sorry!'}\n'
 
         if unknown:
             self.TOOL.log_actions(f'[LABEL_PORTS] Unknow port to investigate: {unknown}')

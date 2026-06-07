@@ -82,7 +82,7 @@ class ToolSuiteInitializer:
     def setup_workspace(self) -> bool:
         touch_info_file = f'touch {self.WORKSPACE_PATH}/info.json' 
         touch_frank_file = f'touch {self.WORKSPACE_PATH}/frank_says.txt' 
-        cp_CHEATSHEET = f'cp {self.PATH}/.assets/EH_CHEATSEHEETS/HOLY_GRAAL.md {self.WORKSPACE_PATH}/CHEATSHEET.md'
+        cp_CHEATSHEET = f'cp {self.PATH}/.assets/EH_CHEATSEHEETS/CHEATSHEET.md {self.WORKSPACE_PATH}/CHEATSHEET.md'
         mkdir_nmap = f'mkdir -p {self.WORKSPACE_PATH}/nmap'
         mkdir_gobuster = f'mkdir -p {self.WORKSPACE_PATH}/gobuster'
         mkdir_notes_creds_files = f'mkdir -p {self.WORKSPACE_PATH}/misc/creds {self.WORKSPACE_PATH}/misc/files'
@@ -414,6 +414,13 @@ class ToolSuiteInitializer:
         except Exception as e:
             self.log_actions(f"[-] Error while removing host configuration: {e}")
 
+
+    def call_udp_scan(self):
+        udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
+        udp_scan_cmd = f'{self.SUDO} nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
+        print(self.colors.yellow('Waiting for UDP scanning...'))
+        self.utils.run_with_spinner(name='UDP ports scan', cmd=udp_scan_cmd, shell=True)
+        self.log_actions('[NMAP] UDP scan done!')
 
     def call_nmap(self):
 

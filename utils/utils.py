@@ -35,7 +35,8 @@ class Utils:
         self.colors = Shell_Colors()
     
     def run_with_spinner(self, name: str, cmd: str, shell: bool = False):
-
+        import sys
+        
         proc = subprocess.Popen(
             cmd if shell else shlex.split(cmd),
             shell=shell,
@@ -44,14 +45,20 @@ class Utils:
         )
 
         start = time.time()
-
-        with Live(refresh_per_second=10) as live:
+        
+        # If not a TTY (e.g. GUI pipe), avoid rich.Live which spams ANSI escape codes
+        if not sys.stdout.isatty():
+            print(self.colors.yellow(f' [*] Starting {name}...'))
             while proc.poll() is None:
-                elapsed = time.time() - start
-                mins = int(elapsed // 60)
-                secs = int(elapsed % 60)
-                live.update(Text(f' [*] Process {name}... {mins:02d}:{secs:02d}', style='yellow'))
-                time.sleep(0.1)
+                time.sleep(1)
+        else:
+            with Live(refresh_per_second=10) as live:
+                while proc.poll() is None:
+                    elapsed = time.time() - start
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    live.update(Text(f' [*] Process {name}... {mins:02d}:{secs:02d}', style='yellow'))
+                    time.sleep(0.1)
 
         elapsed = time.time() - start
         mins = int(elapsed // 60)

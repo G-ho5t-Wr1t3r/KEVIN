@@ -1,6 +1,6 @@
-{ 
+{
     "user_settings": {
-        "theme": "dark", 
+        "theme": "dark",
         "seclist_path": "/usr/share/wordlists/seclists",
         "dirbuster": "/usr/share/wordlists/dirbuster",
         "dirb": "/usr/share/wordlists/dirb"
@@ -12,4 +12,4 @@
             "vhost_wordlist": "/usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
         }
     }
-} 
+}

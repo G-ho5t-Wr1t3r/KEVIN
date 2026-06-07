@@ -38,18 +38,25 @@ class KevinGUI:
         self.active_jobs = {} 
         self.log_queue = queue.Queue()
         
-        # Implement a real OS pipe for stdin to fix 'fileno' issue
+        # --- SURGICAL STREAM REDIRECTION ---
+        # 1. Setup STDIN Pipe for sudo (Needs fileno)
         self.stdin_read_fd, self.stdin_write_fd = os.pipe()
+        os.dup2(self.stdin_read_fd, 0)
+        sys.stdin = os.fdopen(0, 'r')
         
-        # Redirect stdout/stderr/stdin
+        # 2. Redirect Python output (print statements) to the GUI queue
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
-        self.original_stdin = sys.stdin
         sys.stdout = self
         sys.stderr = self
-        sys.stdin = os.fdopen(self.stdin_read_fd, 'r')
         
-        # Skip setup only if explicitly requested via CLI args (e.g. -gui flag)
+        # 3. Handle Child Processes (Subprocess)
+        # We'll need to pass the write-end of an OS pipe to subprocess calls 
+        # that aren't using the shared sys.stdout.
+        # But ToolSuiteInitializer uses subprocess.run/Popen with capture_output=True 
+        # or shell=True usually.
+        # ---------------------------------
+        
         if args and hasattr(args, 'gui') and args.gui:
             self.create_main_window()
             self.init_from_args(args)
@@ -58,9 +65,74 @@ class KevinGUI:
             
         self.root.after(100, self.process_log_queue)
 
+    def write(self, message):
+        if message:
+            # Detect sudo prompt here as well
+            if "[sudo] password" in message.lower() or "password for" in message.lower():
+                self.root.after(0, self.show_sudo_popup)
+            self.log_queue.put(message)
+
+    def flush(self):
+        pass
+
+    def isatty(self):
+        return False
+
+    def fileno(self):
+        # We don't have a real fd for the Python-level redirection
+        return None
+
+    def show_sudo_popup(self):
+        # If a popup is already open, don't open another one
+        if hasattr(self, 'sudo_popup_open') and self.sudo_popup_open:
+            return
+            
+        self.sudo_popup_open = True
+        popup = tk.Toplevel(self.root)
+        popup.title("SUDO PRIVILEGES REQUIRED")
+        popup.geometry("450x200")
+        popup.configure(bg=self.bg_color)
+        popup.resizable(False, False)
+        self.center_window(popup)
+        
+        # Ensure it stays on top
+        popup.attributes("-topmost", True)
+        
+        header = ttk.Label(popup, text="KEVIN ENGINE", font=("Segoe UI", 12, "bold"), foreground=self.accent_color)
+        header.pack(pady=(20, 10))
+        
+        ttk.Label(popup, text="A process is requesting sudo privileges.\nPlease enter your password:").pack(pady=5)
+        
+        pw_var = tk.StringVar()
+        entry = ttk.Entry(popup, textvariable=pw_var, show="*", width=35)
+        entry.pack(pady=10)
+        entry.focus_set()
+        
+        def send_pw(event=None):
+            password = pw_var.get()
+            if password:
+                # Write to the OS pipe
+                os.write(self.stdin_write_fd, (password + "\n").encode())
+            self.sudo_popup_open = False
+            popup.destroy()
+            
+        def on_cancel():
+            self.sudo_popup_open = False
+            popup.destroy()
+
+        # Bindings
+        entry.bind("<Return>", send_pw)
+        popup.protocol("WM_DELETE_WINDOW", on_cancel)
+        
+        btn_frame = ttk.Frame(popup)
+        btn_frame.pack(pady=15)
+        
+        tk.Button(btn_frame, text="CANCEL", command=on_cancel, **self.btn_style, width=12).pack(side="left", padx=10)
+        tk.Button(btn_frame, text="AUTHORIZE", command=send_pw, **self.btn_style, width=12, bg=self.accent_color, fg="white").pack(side="left", padx=10)
+
     def init_from_args(self, args):
         try:
-            self.args_nmap_requested = args.nmap
+            # args.nmap is ignored, we always run it
             self.tool_suite = ToolSuiteInitializer(
                 DEBUG=args.d,
                 CLEAN=args.clean_log,
@@ -74,11 +146,11 @@ class KevinGUI:
                 ALIAS=args.alias
             )
             
-            # Monkey patch log_actions
+            # Monkey patch log_actions to use print (goes through the OS pipe for correct ordering)
             original_log = self.tool_suite.log_actions
             def patched_log(message):
                 original_log(message)
-                self.log_queue.put(message)
+                print(f"[LOG] {message}")
             self.tool_suite.log_actions = patched_log
             
             self.add_job("INIT", "Workspace & Connection (CLI Args)")
@@ -87,13 +159,6 @@ class KevinGUI:
         except Exception as e:
             self.show_error(f"Failed to initialize from CLI: {e}")
             self.create_setup_screen()
-
-    def write(self, message):
-        if message:
-            self.log_queue.put(message)
-
-    def flush(self):
-        pass
 
     def load_config(self):
         try:
@@ -128,7 +193,6 @@ class KevinGUI:
 
     def setup_styles(self):
         self.style = ttk.Style()
-        # Use 'clam' for better consistency on Linux
         try:
             self.style.theme_use('clam')
         except:
@@ -137,19 +201,21 @@ class KevinGUI:
         if self.theme == 'dark':
             self.bg_color = "#1e1e1e"
             self.fg_color = "#d4d4d4"
-            self.accent_color = "#e51400" # Kevin Red
+            self.accent_color = "#e51400" 
             self.btn_color = "#333333"
             self.btn_active = "#454545"
             self.entry_bg = "#3c3c3c"
             self.tree_bg = "#252526"
+            self.text_bg = "#1e1e1e"
         else:
             self.bg_color = "#f3f3f3"
-            self.fg_color = "#000000"
-            self.accent_color = "#007acc" # VS Blue
+            self.fg_color = "#2c2c2c"
+            self.accent_color = "#007acc" 
             self.btn_color = "#e1e1e1"
             self.btn_active = "#c5c5c5"
             self.entry_bg = "#ffffff"
             self.tree_bg = "#ffffff"
+            self.text_bg = "#ffffff"
 
         self.root.configure(bg=self.bg_color)
         
@@ -159,13 +225,15 @@ class KevinGUI:
         self.style.configure("TNotebook", background=self.bg_color, borderwidth=0)
         self.style.configure("TNotebook.Tab", background=self.btn_color, foreground=self.fg_color, padding=[12, 4])
         self.style.map("TNotebook.Tab", background=[("selected", self.accent_color)], foreground=[("selected", "white")])
-        self.style.configure("Header.TLabel", font=("Segoe UI", 28, "bold"), foreground=self.accent_color)
+        self.style.configure("Header.TLabel", font=("Segoe UI", 28, "bold"), foreground=self.accent_color, background=self.bg_color)
         
         self.style.configure("Treeview", background=self.tree_bg, foreground=self.fg_color, fieldbackground=self.tree_bg, borderwidth=0)
         self.style.map("Treeview", background=[('selected', self.accent_color)])
         self.style.configure("Treeview.Heading", background=self.btn_color, foreground=self.fg_color, font=("Segoe UI", 10, "bold"))
+        
+        self.style.configure("TLabelframe", background=self.bg_color, foreground=self.fg_color)
+        self.style.configure("TLabelframe.Label", background=self.bg_color, foreground=self.fg_color, font=("Segoe UI", 10, "bold"))
 
-        # Use tk.Button for main actions to avoid theme glitches
         self.btn_style = {
             "bg": self.btn_color,
             "fg": self.fg_color,
@@ -174,6 +242,39 @@ class KevinGUI:
             "relief": tk.FLAT,
             "font": ("Segoe UI", 10)
         }
+        
+    def refresh_ui_colors(self):
+        # Update root and styles
+        self.setup_styles()
+        
+        # Helper to recursively update widget colors
+        def update_widget(widget):
+            try:
+                # Update tk widgets (Buttons, Labels, etc. that aren't ttk)
+                w_type = widget.winfo_class()
+                if w_type == 'Button':
+                    widget.configure(bg=self.btn_color, fg=self.fg_color, activebackground=self.accent_color)
+                elif w_type == 'Label' and not str(widget).endswith('status_bar'):
+                    widget.configure(bg=self.bg_color, fg=self.fg_color)
+                elif w_type == 'Frame':
+                    widget.configure(bg=self.bg_color)
+                elif w_type == 'Text':
+                    # Log terminal is special (always black)
+                    if not hasattr(self, 'log_text') or widget != self.log_text:
+                        widget.configure(bg=self.entry_bg, fg=self.fg_color, insertbackground=self.fg_color)
+                elif w_type == 'Canvas':
+                    widget.configure(bg=self.bg_color)
+                
+                # Check for children
+                for child in widget.winfo_children():
+                    update_widget(child)
+            except:
+                pass
+
+        update_widget(self.root)
+        self.status_bar.configure(background=self.btn_color, foreground=self.fg_color)
+        if hasattr(self, 'jobs_canvas'): self.jobs_canvas.configure(bg=self.bg_color)
+        if hasattr(self, 'jobs_frame'): self.jobs_frame.configure(bg=self.bg_color)
 
     def show_error(self, message):
         messagebox.showerror("KEVIN ERROR", message)
@@ -195,13 +296,13 @@ class KevinGUI:
             var.set(path)
 
     def create_setup_screen(self):
-        self.setup_frame = ttk.Frame(self.root)
+        self.setup_frame = tk.Frame(self.root, bg=self.bg_color)
         self.setup_frame.pack(expand=True, fill="both", padx=40, pady=40)
         
         header = ttk.Label(self.setup_frame, text="KEVIN", style="Header.TLabel")
         header.pack(pady=(0, 30))
         
-        form_frame = ttk.Frame(self.setup_frame)
+        form_frame = tk.Frame(self.setup_frame, bg=self.bg_color)
         form_frame.pack(expand=True)
         
         fields = [
@@ -231,10 +332,9 @@ class KevinGUI:
             self.setup_vars[key].set(default)
             
             if browse_mode:
-                btn_browse = tk.Button(form_frame, text="BROWSE", 
+                tk.Button(form_frame, text="BROWSE", 
                                      command=lambda v=self.setup_vars[key], m=browse_mode: self.browse_path(v, m),
-                                     **self.btn_style, width=10)
-                btn_browse.grid(row=i, column=2, padx=5, pady=8)
+                                     **self.btn_style, width=10).grid(row=i, column=2, padx=5, pady=8)
             
         check_frame = tk.Frame(form_frame, bg=self.bg_color)
         check_frame.grid(row=len(fields), column=1, sticky="w", pady=10)
@@ -262,7 +362,7 @@ class KevinGUI:
         
         tk.Label(confirm_win, text=summary, justify="left", bg=self.bg_color, fg=self.fg_color, font=("Consolas", 12), padx=40, pady=40).pack(expand=True, fill="both")
         
-        btns = ttk.Frame(confirm_win)
+        btns = tk.Frame(confirm_win, bg=self.bg_color)
         btns.pack(fill="x", pady=20, padx=40)
         
         tk.Button(btns, text="MODIFIY", command=confirm_win.destroy, **self.btn_style, width=15).pack(side="left")
@@ -286,11 +386,11 @@ class KevinGUI:
                 ALIAS=self.setup_vars["alias"].get()
             )
             
-            # Monkey patch log_actions
+            # Monkey patch log_actions to use print (goes through the OS pipe for correct ordering)
             original_log = self.tool_suite.log_actions
             def patched_log(message):
                 original_log(message)
-                self.log_queue.put(message)
+                print(f"[LOG] {message}")
             self.tool_suite.log_actions = patched_log
             
             self.create_main_window()
@@ -307,12 +407,8 @@ class KevinGUI:
             success = self.tool_suite.setup()
             if success:
                 self.update_job("INIT", "done")
-                # Auto start nmap if it was checked in GUI or passed in CLI
-                if hasattr(self, 'setup_vars'):
-                    if self.setup_vars["nmap"].get():
-                        self.start_nmap_task()
-                elif hasattr(self, 'args_nmap_requested') and self.args_nmap_requested:
-                    self.start_nmap_task()
+                # Always start nmap task for GUI
+                self.start_nmap_task()
             else:
                 self.update_job("INIT", "error")
         except Exception as e:
@@ -327,10 +423,24 @@ class KevinGUI:
         try:
             self.tool_suite.call_nmap()
             self.update_job("NMAP", "done")
+            self.btn_dora.config(state=tk.NORMAL)
+            self.add_tooltip(self.btn_dora, "Dora: VHost & Directory Enumeration Engine")
             self.root.after(0, self.refresh_overview)
         except Exception as e:
             self.update_job("NMAP", "error")
             self.log_queue.put(f"[ERROR] Nmap failed: {e}")
+
+    def launch_udp_scan(self):
+        self.add_job("UDP_NMAP", "Manual UDP Port Scan")
+        threading.Thread(target=self.udp_scan_task_thread, daemon=True).start()
+
+    def udp_scan_task_thread(self):
+        try:
+            self.tool_suite.call_udp_scan()
+            self.update_job("UDP_NMAP", "done")
+        except Exception as e:
+            self.update_job("UDP_NMAP", "error")
+            self.log_queue.put(f"[ERROR] UDP Nmap failed: {e}")
 
     def create_main_window(self):
         self.notebook = ttk.Notebook(self.root)
@@ -358,24 +468,26 @@ class KevinGUI:
         self.setup_settings_tab()
         
         # Bottom Terminal/Log
-        log_frame = ttk.LabelFrame(self.root, text="TERMINAL LOG")
+        log_frame = tk.Frame(self.root, bg=self.bg_color)
         log_frame.pack(side="bottom", fill="x", padx=10, pady=5)
+        
+        tk.Label(log_frame, text="TERMINAL LOG", font=("Segoe UI", 10, "bold"), bg=self.bg_color, fg=self.fg_color).pack(anchor="w", padx=5)
         
         self.log_text = tk.Text(log_frame, height=10, bg="#000000", fg="#ffffff", font=("Consolas", 10), padx=5, pady=5)
         self.log_text.pack(expand=True, fill="both")
         self.log_text.config(state="disabled")
         
         # Terminal Input for sudo etc.
-        input_frame = ttk.Frame(log_frame)
+        input_frame = tk.Frame(log_frame, bg=self.bg_color)
         input_frame.pack(fill="x", pady=2)
-        ttk.Label(input_frame, text="TERMINAL INPUT:").pack(side="left", padx=5)
+        tk.Label(input_frame, text="TERMINAL INPUT:", bg=self.bg_color, fg=self.fg_color).pack(side="left", padx=5)
         self.terminal_input = ttk.Entry(input_frame)
         self.terminal_input.pack(side="left", fill="x", expand=True, padx=5)
         self.terminal_input.bind("<Return>", self.send_to_terminal)
         
         # Status Bar
         self.status_var = tk.StringVar(value="Kevin Engine Ready")
-        self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor="w", padding=(5, 2))
+        self.status_bar = tk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor="w", padx=5, pady=2, bg=self.btn_color, fg=self.fg_color)
         self.status_bar.pack(side="bottom", fill="x")
 
     def send_to_terminal(self, event=None):
@@ -386,13 +498,13 @@ class KevinGUI:
             self.terminal_input.delete(0, tk.END)
 
     def setup_overview_tab(self):
-        left_frame = ttk.Frame(self.tab_overview, width=250)
+        left_frame = tk.Frame(self.tab_overview, width=250, bg=self.bg_color)
         left_frame.pack(side="left", fill="y", padx=10, pady=10)
         ttk.Label(left_frame, text="JOB POOL", font=("Segoe UI", 12, "bold")).pack(pady=10)
         
         self.jobs_canvas = tk.Canvas(left_frame, bg=self.bg_color, highlightthickness=0)
         self.jobs_scroll = ttk.Scrollbar(left_frame, orient="vertical", command=self.jobs_canvas.yview)
-        self.jobs_frame = ttk.Frame(self.jobs_canvas)
+        self.jobs_frame = tk.Frame(self.jobs_canvas, bg=self.bg_color)
         
         self.jobs_frame.bind("<Configure>", lambda e: self.jobs_canvas.configure(scrollregion=self.jobs_canvas.bbox("all")))
         self.jobs_canvas.create_window((0, 0), window=self.jobs_frame, anchor="nw")
@@ -401,7 +513,7 @@ class KevinGUI:
         self.jobs_canvas.pack(side="left", fill="both", expand=True)
         self.jobs_scroll.pack(side="right", fill="y")
         
-        center_frame = ttk.Frame(self.tab_overview)
+        center_frame = tk.Frame(self.tab_overview, bg=self.bg_color)
         center_frame.pack(side="left", expand=True, fill="both", padx=20, pady=20)
         
         header = ttk.Label(center_frame, text="KEVIN ENGINE", style="Header.TLabel")
@@ -415,13 +527,17 @@ class KevinGUI:
         btn_browser.pack(pady=10)
         self.add_tooltip(btn_browser, "Open http://target in your default browser")
         
-        btn_pool = ttk.Frame(center_frame)
+        btn_pool = tk.Frame(center_frame, bg=self.bg_color)
         btn_pool.pack(side="bottom", fill="x", pady=40)
         
-        btn_dora = tk.Button(btn_pool, text="LAUNCH DORA", command=lambda: self.notebook.select(self.tab_dora), **self.btn_style, width=20)
-        btn_dora.pack(side="left", padx=10, expand=True)
-        self.add_tooltip(btn_dora, "Dora: VHost & Directory Enumeration Engine")
+        self.btn_dora = tk.Button(btn_pool, text="LAUNCH DORA", command=lambda: self.notebook.select(self.tab_dora), **self.btn_style, width=20, state=tk.DISABLED)
+        self.btn_dora.pack(side="left", padx=10, expand=True)
+        self.add_tooltip(self.btn_dora, "Dora: VHost & Directory Enumeration Engine (WAIT NMAP)")
         
+        self.btn_udp = tk.Button(btn_pool, text="UDP SCAN", command=self.launch_udp_scan, **self.btn_style, width=20)
+        self.btn_udp.pack(side="left", padx=10, expand=True)
+        self.add_tooltip(self.btn_udp, "Start a manual Nmap UDP scan on top ports")
+
         btn_cred = tk.Button(btn_pool, text="NEW CREDENTIAL", command=self.show_add_cred_dialog, **self.btn_style, width=20)
         btn_cred.pack(side="left", padx=10, expand=True)
         self.add_tooltip(btn_cred, "Store a new discovered credential (username/password)")
@@ -445,11 +561,12 @@ class KevinGUI:
         tk.Checkbutton(config_frame, text="Fuzzing", variable=self.dora_vars["fuzz"], bg=self.bg_color, fg=self.fg_color, selectcolor=self.btn_color, activebackground=self.bg_color).pack(side="left", padx=15, pady=15)
         
         tk.Button(config_frame, text="EXECUTE DORA", command=self.launch_dora, **self.btn_style, width=15).pack(side="right", padx=15)
+        tk.Button(config_frame, text="OPEN NMAP FOLDER", command=self.open_nmap_folder, **self.btn_style, width=20).pack(side="right", padx=15)
         
-        results_frame = ttk.Frame(self.tab_dora)
+        results_frame = tk.Frame(self.tab_dora, bg=self.bg_color)
         results_frame.pack(expand=True, fill="both", padx=20, pady=10)
         
-        search_frame = ttk.Frame(results_frame)
+        search_frame = tk.Frame(results_frame, bg=self.bg_color)
         search_frame.pack(fill="x", pady=(0, 10))
         ttk.Label(search_frame, text="FILTER:").pack(side="left", padx=5)
         self.dora_search_var = tk.StringVar()
@@ -462,13 +579,23 @@ class KevinGUI:
         self.dora_results_tree.pack(expand=True, fill="both")
         self.dora_results_tree.bind("<Double-1>", self.on_dora_click)
 
+    def open_nmap_folder(self):
+        if self.tool_suite and self.tool_suite.NMAP_PATH:
+            path = self.tool_suite.NMAP_PATH
+            if sys.platform == 'win32':
+                os.startfile(path)
+            elif sys.platform == 'darwin':
+                subprocess.Popen(['open', path])
+            else:
+                subprocess.Popen(['xdg-open', path])
+
     def setup_frank_tab(self):
         ttk.Label(self.tab_frank, text="FRANK'S INTELLIGENCE REPORT", font=("Segoe UI", 14, "bold")).pack(pady=15)
         
-        self.frank_text = scrolledtext.ScrolledText(self.tab_frank, bg=self.entry_bg, fg=self.fg_color, font=("Consolas", 11), padx=10, pady=10)
+        self.frank_text = scrolledtext.ScrolledText(self.tab_frank, bg=self.entry_bg, fg=self.fg_color, font=("Consolas", 9), padx=10, pady=10)
         self.frank_text.pack(expand=True, fill="both", padx=20, pady=10)
         
-        export_frame = ttk.Frame(self.tab_frank)
+        export_frame = tk.Frame(self.tab_frank, bg=self.bg_color)
         export_frame.pack(fill="x", padx=20, pady=20)
         ttk.Label(export_frame, text="CHEATSHEETS:").pack(side="left", padx=5)
         self.frank_cs_var = tk.StringVar()
@@ -479,7 +606,7 @@ class KevinGUI:
         tk.Button(export_frame, text="RE-RUN FRANK", command=self.refresh_frank, **self.btn_style, width=15).pack(side="right")
 
     def setup_creds_tab(self):
-        top_frame = ttk.Frame(self.tab_creds)
+        top_frame = tk.Frame(self.tab_creds, bg=self.bg_color)
         top_frame.pack(fill="x", padx=20, pady=20)
         
         ttk.Label(top_frame, text="SEARCH CREDENTIALS:").pack(side="left", padx=5)
@@ -507,7 +634,7 @@ class KevinGUI:
         tk.Button(actions_frame, text="EDIT / UPDATE", command=self.edit_selected_cred, **self.btn_style, width=15).grid(row=0, column=3, padx=20, pady=15)
 
     def setup_notes_tab(self):
-        header = ttk.Frame(self.tab_notes)
+        header = tk.Frame(self.tab_notes, bg=self.bg_color)
         header.pack(fill="x", padx=20, pady=10)
         ttk.Label(header, text="WORKSPACE NOTES", font=("Segoe UI", 12, "bold")).pack(side="left")
         tk.Button(header, text="SAVE NOTES", command=self.save_notes, **self.btn_style, width=15).pack(side="right")
@@ -517,56 +644,69 @@ class KevinGUI:
         self.root.bind("<Control-s>", lambda e: self.save_notes())
 
     def setup_settings_tab(self):
-        container = ttk.Frame(self.tab_settings)
+        container = tk.Frame(self.tab_settings, bg=self.bg_color)
         container.pack(expand=True, fill="both", padx=40, pady=40)
         
-        ttk.Label(container, text="GLOBAL CONFIGURATION", font=("Segoe UI", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 25), sticky="w")
+        ttk.Label(container, text="GLOBAL CONFIGURATION", font=("Segoe UI", 14, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 25), sticky="w")
         
         self.setting_vars = {}
         row = 1
         
         # User settings
-        ttk.Label(container, text="USER PREFERENCES", font=("Segoe UI", 11, "bold")).grid(row=row, column=0, columnspan=2, pady=10, sticky="w")
+        ttk.Label(container, text="USER PREFERENCES", font=("Segoe UI", 11, "bold")).grid(row=row, column=0, columnspan=3, pady=10, sticky="w")
         row += 1
         
         user_map = [
-            ("Theme (dark/light)", "theme", None), 
-            ("Seclists Path", "seclist_path", "dir"), 
-            ("Dirbuster Path", "dirbuster", "dir"), 
-            ("Dirb Path", "dirb", "dir")
+            ("Theme", "theme", "choice", ["dark", "light"]), 
+            ("Seclists Path", "seclist_path", "dir", None), 
+            ("Dirbuster Path", "dirbuster", "dir", None), 
+            ("Dirb Path", "dirb", "dir", None)
         ]
-        for label, key, browse_mode in user_map:
+        for label, key, mode, options in user_map:
             ttk.Label(container, text=label+":").grid(row=row, column=0, sticky="e", padx=10, pady=5)
             var = tk.StringVar(value=str(self.config["user_settings"].get(key, "")))
             self.setting_vars[f"user_{key}"] = var
-            ttk.Entry(container, textvariable=var, width=50).grid(row=row, column=1, padx=10, pady=5)
-            if browse_mode:
-                tk.Button(container, text="BROWSE", 
-                          command=lambda v=var, m=browse_mode: self.browse_path(v, m),
-                          **self.btn_style, width=10).grid(row=row, column=2, padx=5, pady=5)
+            
+            if mode == "choice":
+                combo = ttk.Combobox(container, textvariable=var, values=options, state="readonly", width=47)
+                combo.grid(row=row, column=1, padx=10, pady=5)
+                combo.bind("<<ComboboxSelected>>", self.on_theme_change)
+            else:
+                ttk.Entry(container, textvariable=var, width=50).grid(row=row, column=1, padx=10, pady=5)
+                if mode in ["file", "dir"]:
+                    tk.Button(container, text="BROWSE", 
+                              command=lambda v=var, m=mode: self.browse_path(v, m),
+                              **self.btn_style, width=10).grid(row=row, column=2, padx=5, pady=5)
             row += 1
             
         # Gobuster settings
-        ttk.Label(container, text="GOBUSTER SETTINGS", font=("Segoe UI", 11, "bold")).grid(row=row, column=0, columnspan=2, pady=20, sticky="w")
+        ttk.Label(container, text="GOBUSTER SETTINGS", font=("Segoe UI", 11, "bold")).grid(row=row, column=0, columnspan=3, pady=20, sticky="w")
         row += 1
         
         gobuster_map = [
-            ("Threads", "gobuster_thread", None), 
+            ("Threads", "gobuster_thread", "text"), 
             ("Dir Wordlist", "dir_wordlist", "file"), 
             ("VHost Wordlist", "vhost_wordlist", "file")
         ]
-        for label, key, browse_mode in gobuster_map:
+        for label, key, mode in gobuster_map:
             ttk.Label(container, text=label+":").grid(row=row, column=0, sticky="e", padx=10, pady=5)
             var = tk.StringVar(value=str(self.config["functional_settings"]["gobuster"].get(key, "")))
             self.setting_vars[f"gb_{key}"] = var
             ttk.Entry(container, textvariable=var, width=50).grid(row=row, column=1, padx=10, pady=5)
-            if browse_mode:
+            if mode in ["file", "dir"]:
                 tk.Button(container, text="BROWSE", 
-                          command=lambda v=var, m=browse_mode: self.browse_path(v, m),
+                          command=lambda v=var, m=mode: self.browse_path(v, m),
                           **self.btn_style, width=10).grid(row=row, column=2, padx=5, pady=5)
             row += 1
             
         tk.Button(container, text="SAVE GLOBAL CONFIG", command=self.save_all_settings, **self.btn_style, width=25).grid(row=row, column=1, pady=30, sticky="e")
+
+    def on_theme_change(self, event=None):
+        new_theme = self.setting_vars["user_theme"].get()
+        if new_theme != self.theme:
+            self.theme = new_theme
+            self.refresh_ui_colors()
+            self.status_var.set(f"Theme changed to {self.theme}")
 
     def save_all_settings(self):
         for full_key, var in self.setting_vars.items():
@@ -623,8 +763,8 @@ class KevinGUI:
             webbrowser.open(url)
 
     def open_browser(self):
-        host = self.setup_vars["host_name"].get()
-        if host: webbrowser.open(f"http://{host}")
+        if self.tool_suite and self.tool_suite.HOST_NAME:
+            webbrowser.open(f"http://{self.tool_suite.HOST_NAME}")
 
     def show_add_cred_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -786,17 +926,19 @@ class KevinGUI:
     def refresh_jobs_ui(self):
         for w in self.jobs_frame.winfo_children(): w.destroy()
         for jid, info in self.active_jobs.items():
-            f = ttk.Frame(self.jobs_frame)
+            f = tk.Frame(self.jobs_frame, bg=self.bg_color)
             f.pack(fill="x", pady=5)
             c = tk.Canvas(f, width=15, height=15, bg=self.bg_color, highlightthickness=0)
             c.pack(side="left", padx=5)
             color = {"running":"yellow", "done":"#4caf50", "error":"#f44336"}.get(info['status'], "gray")
             c.create_oval(2, 2, 13, 13, fill=color, outline="")
-            ttk.Label(f, text=f"{jid}: {info['status'].upper()}", font=("Segoe UI", 9, "bold")).pack(side="left")
-            ttk.Label(self.jobs_frame, text=f"  {info['name']}", font=("Segoe UI", 8), foreground="gray").pack(fill="x")
+            tk.Label(f, text=f"{jid}: {info['status'].upper()}", font=("Segoe UI", 9, "bold"), bg=self.bg_color, fg=self.fg_color).pack(side="left")
+            tk.Label(self.jobs_frame, text=f"  {info['name']}", font=("Segoe UI", 8), foreground="gray", bg=self.bg_color).pack(fill="x")
 
     def process_log_queue(self):
-        while not self.log_queue.empty():
+        # Process multiple messages at once to keep up with high-volume output
+        processed = 0
+        while not self.log_queue.empty() and processed < 100:
             msg = self.log_queue.get()
             self.log_text.config(state="normal")
             
@@ -825,13 +967,11 @@ class KevinGUI:
                         elif code in ansi_colors:
                             current_fg = ansi_colors[code]
             
-            # Add newline if not present
-            if not msg.endswith('\n'):
-                self.log_text.insert(tk.END, "\n")
-            
             self.log_text.see(tk.END)
             self.log_text.config(state="disabled")
-        self.root.after(100, self.process_log_queue)
+            processed += 1
+            
+        self.root.after(50, self.process_log_queue)
 
 def launch_gui(args=None):
     root = tk.Tk()

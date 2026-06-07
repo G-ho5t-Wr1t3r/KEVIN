@@ -76,9 +76,9 @@ class Dora:
             commands = {}
 
             if 'd' in dora_opt:
-                commands['dir'] = f'gobuster dir -u {url} -w {self.TOOL.GOBUSTER_DIR_WORDLIST} -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
+                commands['dir'] = f'gobuster dir -u {url} -w {self.TOOL.GOBUSTER_DIR_WORDLIST} -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt'
             if 'v' in dora_opt:
-                commands['vhost'] = f'gobuster vhost -u {url} -w {self.TOOL.GOBUSTER_VHOST_WORDLIST} --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
+                commands['vhost'] = f'gobuster vhost -u {url} -w {self.TOOL.GOBUSTER_VHOST_WORDLIST} --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt'
             if 'f' in dora_opt:
                 commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w {self.TOOL.SECLIST_PATH}/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
 
