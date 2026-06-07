@@ -30,7 +30,8 @@ def kevin():
         return value
     
     def launch_gui():
-        pass
+        from GUI.pretty_kevin import launch_gui as start_gui
+        start_gui()
     
     if len(sys.argv) == 1:
         launch_gui()
@@ -101,6 +102,12 @@ def kevin():
         help='Creates alias "kevin" in specified file'
     )
     parser.add_argument(
+        "-gui",
+        action="store_true",
+        required=False,
+        help="Opens Kevin's GUI"
+    )
+    parser.add_argument(
         "-d",
         action="store_true",
         required=False,
@@ -127,6 +134,8 @@ def kevin():
     workspace_path = args.workspace # es. --workspace '~/EH'
     vpn_path = args.vpn
     CLEAN = args.clean_log
+
+    gui = args.gui # TODO gui senza setup
 
     try:
         # ================================================================== #

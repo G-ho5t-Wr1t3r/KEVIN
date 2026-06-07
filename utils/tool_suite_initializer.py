@@ -2,6 +2,7 @@ from .utils import Utils, Shell_Colors
 from datetime import datetime
 import json
 import os
+import sys
 import re
 import subprocess
 import time
@@ -20,6 +21,8 @@ class ToolSuiteInitializer:
         self.WORKSPACE_PATH = os.path.expanduser(WORKSPACE_PATH) if WORKSPACE_PATH else None
         self.VPN_PATH = os.path.expanduser(VPN_PATH) if VPN_PATH else None
         
+        self.SUDO = "sudo -S" if not sys.stdin.isatty() else "sudo"
+        
         # TODO only open vpn and wireguard supported for now ;)
         if self.VPN_PATH.split('.')[-1] == 'ovpn':
             self.VPN = 'OPENVPN'
@@ -32,12 +35,6 @@ class ToolSuiteInitializer:
         self.utils = Utils()
 
         self.extract_settings()    
-        data = {
-            self.utils.ip_KEY: self.IP,
-            self.utils.common_name_KEY: self.COMMON_NAME,
-            self.utils.host_name_KEY: self.HOST_NAME
-        }
-        self.take_note(data)
 
     def extract_settings(self):
         config_labels = { 'user_settings': ['theme', 'seclist_path', 'dirbuster', 'dirb'],
@@ -144,34 +141,33 @@ class ToolSuiteInitializer:
             raise RuntimeError(self.colors.red('[-] Error while creating gobuster dir'))
         
         try:
-            if not os.path.exists(f'{self.WORKSPACE_PATH}/notes'): 
+            if not os.path.exists(f'{self.WORKSPACE_PATH}/misc'): 
                 subprocess.run(
                     mkdir_notes_creds_files,
                     shell = True, 
                     capture_output = True, 
                     check = True
                 )
-                self.MISC_PATH = f'{self.WORKSPACE_PATH}/misc'
-                self.CREDS_PATH = f'{self.WORKSPACE_PATH}/notes/creds'
-                self.LOGS_PATH = f'{self.WORKSPACE_PATH}/notes/files'
-
-                touch_creds = f'touch {self.CREDS_PATH}/creds.json'
-                touch_notes = f'touch {self.MISC_PATH}/notes.txt'
-
-                subprocess.run(
-                    touch_creds,
-                    shell = True, 
-                    capture_output = True, 
-                    check = True
-                )
-                subprocess.run(
-                    touch_notes,
-                    shell = True, 
-                    capture_output = True, 
-                    check = True
-                )
-
                 self.log_actions('[+] Successfully created misc, creds and files dirs')
+            self.MISC_PATH = f'{self.WORKSPACE_PATH}/misc'
+            self.CREDS_PATH = f'{self.WORKSPACE_PATH}/misc/creds'
+            self.LOGS_PATH = f'{self.WORKSPACE_PATH}/misc/files'
+
+            touch_creds = f'touch {self.CREDS_PATH}/credentials.json'
+            touch_notes = f'touch {self.MISC_PATH}/notes.txt'
+
+            subprocess.run(
+                touch_creds,
+                shell = True, 
+                capture_output = True, 
+                check = True
+            )
+            subprocess.run(
+                touch_notes,
+                shell = True, 
+                capture_output = True, 
+                check = True
+            )
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
             raise RuntimeError(self.colors.red('[-] Error while creating misc and nested dirs'))
@@ -185,9 +181,20 @@ class ToolSuiteInitializer:
                     check = True
                 )
                 self.log_actions('[+] Successfully created PoCs dir')
-            self.NMAP_PATH = f'{self.WORKSPACE_PATH}/PoCs'
+            self.POCS_PATH = f'{self.WORKSPACE_PATH}/PoCs'
         except Exception as e:
             raise RuntimeError(self.colors.red('[-] Error while creating PoCs dir'))
+        
+        try:
+            data = {
+                self.utils.ip_KEY(): self.IP,
+                self.utils.common_name_KEY(): self.COMMON_NAME,
+                self.utils.host_name_KEY(): self.HOST_NAME
+            }
+            self.take_note(data)
+        except Exception as e:
+            print(f'[DEBUG] {e}')
+            raise RuntimeError(self.colors.red('[-] Error while saving base info'))
         return True
 
 
@@ -250,6 +257,8 @@ class ToolSuiteInitializer:
             except Exception as e:
                 self.log_actions(f"[-] Error while saving alias: {e}")
                 return False
+        else: 
+            return True
 
     def keep_sudo_alive(self):
         '''
@@ -257,7 +266,7 @@ class ToolSuiteInitializer:
         '''
         def refresh():
             while True:
-                result = subprocess.run('sudo -v', shell=True, capture_output=True)
+                result = subprocess.run(f'{self.SUDO} -v', shell=True, capture_output=True, stdin=sys.stdin)
                 if result.returncode != 0:
                     self.log_actions('[VPN] sudo -v refresh failed!')
                 time.sleep(60)
@@ -277,7 +286,7 @@ class ToolSuiteInitializer:
             path = '/etc/hosts'
             hsots_config = f"\n#@@@@@begin-eh-toolsuite@@@@@\n# Configurations for {host_name} (auto-added by eh-toolsuite)\n{ip} {common_name if common_name else host_name} {host_name if common_name else ''}\n#@@@@@end-eh-toolsuite@@@@@"
             
-            cmd = f"sudo tee -a {path} > /dev/null"
+            cmd = f"{self.SUDO} tee -a {path} > /dev/null"
             process = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, text=True)
             process.communicate(input=hsots_config)
             
@@ -290,14 +299,15 @@ class ToolSuiteInitializer:
     def turn_on_vpn(self) -> bool:
         self.log_actions(f'[VPN] VPS type: {self.VPN}')
         if self.VPN == 'OPENVPN':
-            cmd = ['sudo', 'openvpn', '--config', self.VPN_PATH]
+            cmd = [self.SUDO.split()[0]] + self.SUDO.split()[1:] + ['openvpn', '--config', self.VPN_PATH]
         else:
-            cmd = ['sudo', 'wg-quick', 'up', self.VPN_PATH]
+            cmd = [self.SUDO.split()[0]] + self.SUDO.split()[1:] + ['wg-quick', 'up', self.VPN_PATH]
 
         self.vpn_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            stdin=sys.stdin,
             text=True,                
             bufsize=1 # pop out the row when it comes
         )
@@ -316,7 +326,7 @@ class ToolSuiteInitializer:
                     print(self.colors.green('[+] VPN connected!'))
                     return True
             
-            # Fallback if you are lucky
+            # Fallback if you are more lucky than me
             timeout = 30
             for attempt in range(timeout):
                 result = subprocess.run(
@@ -371,7 +381,7 @@ class ToolSuiteInitializer:
             path = '/etc/hosts'
             
             result = subprocess.run(
-                f"sudo cat {path}",
+                f"{self.SUDO} cat {path}",
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -391,7 +401,7 @@ class ToolSuiteInitializer:
                 elif not skip:
                     new_lines.append(line)
             
-            cmd = f"sudo tee {path} > /dev/null"
+            cmd = f"{self.SUDO} tee {path} > /dev/null"
             process = subprocess.Popen(
                 cmd, 
                 shell = True, 
@@ -421,7 +431,7 @@ class ToolSuiteInitializer:
         
         def detect_OS():
             print(self.colors.yellow('Detecting OS...'))
-            detect_OS_cmd = f'sudo nmap -O --osscan-guess {self.IP}'
+            detect_OS_cmd = f'{self.SUDO} nmap -O --osscan-guess {self.IP}'
             response = subprocess.run(
                 detect_OS_cmd,
                 shell=True,
@@ -446,7 +456,7 @@ class ToolSuiteInitializer:
         self.log_actions('[NMAP] Starting nmap routine...')
 
         full_port_path = f'{self.NMAP_PATH}/allports.txt'
-        full_port_cmd = f'sudo nmap -p- --min-rate 5000 -T4 -oN {full_port_path} {self.IP}'
+        full_port_cmd = f'{self.SUDO} nmap -p- --min-rate 5000 -T4 -oN {full_port_path} {self.IP}'
 
         print(self.colors.yellow('Waiting for full port scanning...'))
         self.utils.run_with_spinner(name='Full port scan', cmd=full_port_cmd, shell=True)
@@ -466,7 +476,7 @@ class ToolSuiteInitializer:
         self.take_note(data={self.utils.active_ports_KEY(): ports.split(',')})
 
         detailed_scan_path = f'{self.NMAP_PATH}/detailded'
-        detailed_scan_cmd = f'sudo nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
+        detailed_scan_cmd = f'{self.SUDO} nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
 
         print(self.colors.yellow('Scanning active ports...'))
         self.utils.run_with_spinner(name='Active ports scan', cmd=detailed_scan_cmd, shell=True)
@@ -483,7 +493,7 @@ class ToolSuiteInitializer:
 
         if self.UDP_SCAN:
             udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
-            udp_scan_cmd = f'sudo nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
+            udp_scan_cmd = f'{self.SUDO} nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
             print(self.colors.yellow('Waiting for UDP scanning...'))
             self.utils.run_with_spinner(name='UDP ports scan', cmd=udp_scan_cmd, shell=True)
             '''
@@ -505,8 +515,10 @@ class ToolSuiteInitializer:
         try: 
             setup = self.setup_workspace()
             alias = self.alias()
-            print(self.colors.blue('Kevin need your password to modify hosts file!'))
-            subprocess.run('sudo -v', shell=True, check=True)  
+            print(self.colors.blue('Kevin need your password for sudo operations!'))
+            # Uses -S to read from stdin if not a TTY
+            cmd = f"{self.SUDO} -v"
+            subprocess.run(cmd, shell=True, check=True, stdin=sys.stdin)  
             self.keep_sudo_alive()
             
             hosts = self.add_to_hosts(self.IP, self.COMMON_NAME, self.HOST_NAME)

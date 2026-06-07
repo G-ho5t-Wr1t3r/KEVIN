@@ -1,5 +1,5 @@
-from ..utils.tool_suite_initializer import ToolSuiteInitializer
-from ..utils.utils import Utils, Shell_Colors
+from utils.tool_suite_initializer import ToolSuiteInitializer
+from utils.utils import Utils, Shell_Colors
 import os
 import subprocess
 

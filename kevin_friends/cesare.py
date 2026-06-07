@@ -1,5 +1,5 @@
-from ..utils.utils import Shell_Colors 
-from ..utils.tool_suite_initializer import ToolSuiteInitializer
+from utils.utils import Shell_Colors 
+from utils.tool_suite_initializer import ToolSuiteInitializer
 import json
 
 class Cesare:
@@ -11,7 +11,7 @@ class Cesare:
         self.TOOL = tool_suite
 
         try:
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'r') as f:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'r') as f:
                 existing = json.load(f)
                 self.creds_counter = len(existing)
         except (FileNotFoundError, json.JSONDecodeError):
@@ -26,7 +26,7 @@ class Cesare:
             return
 
         try:
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'r') as creds_file:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'r') as creds_file:
                 creds = json.load(creds_file)
         except (FileNotFoundError, json.JSONDecodeError):
             creds = {}
@@ -35,7 +35,7 @@ class Cesare:
             creds[self.creds_counter] = cred
             self.creds_counter += 1
 
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'w') as creds_file:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'w') as creds_file:
                 json.dump(creds, creds_file, indent=4)
         except Exception as e:
             message = f'[CESARE - ADD CRED] Error: {e}'
@@ -51,10 +51,10 @@ class Cesare:
             return
 
         try:
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'r') as creds_file:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'r') as creds_file:
                 creds = json.load(creds_file)
         except (FileNotFoundError, json.JSONDecodeError):
-            message = '[CESARE - UPDATE CRED] Cannot process empty creds.json file!'
+            message = '[CESARE - UPDATE CRED] Cannot process empty credentials.json file!'
             print(self.colors.red(message))
             self.TOOL.log_actions(message)
             return
@@ -63,7 +63,7 @@ class Cesare:
             cred_id = next(iter(cred.keys())) 
             creds[cred_id] = cred[cred_id]
 
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'w') as creds_file:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'w') as creds_file:
                 json.dump(creds, creds_file, indent=4)
         except Exception as e:
             message = f'[CESARE - UPDATE CRED] Error: {e}'
@@ -73,7 +73,7 @@ class Cesare:
 
     def find_cred(self, param: str):
         try:
-            with open(f'{self.TOOL.CREDS_PATH}/creds.json', 'r') as creds_file:
+            with open(f'{self.TOOL.CREDS_PATH}/credentials.json', 'r') as creds_file:
                 creds = json.load(creds_file)
 
                 if not param or param.strip().isspace():
@@ -89,7 +89,7 @@ class Cesare:
                 return None
 
         except (FileNotFoundError, json.JSONDecodeError):
-            message = '[CESARE - FIND CRED] Cannot process empty creds.json file!'
+            message = '[CESARE - FIND CRED] Cannot process empty credentials.json file!'
             print(self.colors.red(message))
             self.TOOL.log_actions(message)
             return None
