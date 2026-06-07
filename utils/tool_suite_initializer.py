@@ -1,3 +1,4 @@
+from .utils import Utils, Shell_Colors
 from datetime import datetime
 import json
 import os
@@ -5,7 +6,6 @@ import re
 import subprocess
 import time
 import threading
-from .utils import Utils, Shell_Colors
 
 class ToolSuiteInitializer:
 
@@ -29,14 +29,20 @@ class ToolSuiteInitializer:
         self.ALIAS = os.path.expanduser(ALIAS) if ALIAS else None
         self.PATH = base_path
         self.CHEATSHEET_FOLDER = os.path.abspath(path='.assets/EH_CHEATSHEETS')
+        self.utils = Utils()
 
-        self.extract_settings()
-    
+        self.extract_settings()    
+        data = {
+            self.utils.ip_KEY: self.IP,
+            self.utils.common_name_KEY: self.COMMON_NAME,
+            self.utils.host_name_KEY: self.HOST_NAME
+        }
+        self.take_note(data)
 
     def extract_settings(self):
         config_labels = { 'user_settings': ['theme', 'seclist_path', 'dirbuster', 'dirb'],
                          'functional_settings': {
-                            'gobuster': ['gobuster_thread', 'fuzz_mode', 'dir_wordlist', 'vhost_wordlist']
+                            'gobuster': ['gobuster_thread', 'dir_wordlist', 'vhost_wordlist']
                         }
                     }
         try:
@@ -47,16 +53,14 @@ class ToolSuiteInitializer:
                 self.DIRBUSTER_PATH = config_file['user_settings'][config_labels['user_settings'][2]]
                 self.DIRB_PATH = config_file['user_settings'][config_labels['user_settings'][3]]
                 self.GOBUSTER_THREAD_NUMBER = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][0]])
-                self.GOBUSTER_FUZZ_MODE = int(config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][1]])
-                self.GOBUSTER_DIR_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][2]]
-                self.GOBUSTER_VHOST_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][3]]
+                self.GOBUSTER_DIR_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][1]]
+                self.GOBUSTER_VHOST_WORDLIST = config_file['functional_settings']['gobuster'][config_labels['functional_settings']['gobuster'][2]]
 
                 self.log_actions(f'[SETTINGS] Theme Color: {self.THEME}')
                 self.log_actions(f'[SETTINGS] Seclist\'s Path: {self.SECLIST_PATH}')
                 self.log_actions(f'[SETTINGS] Dirbuster\'s Path: {self.DIRBUSTER_PATH}')
                 self.log_actions(f'[SETTINGS] Dirb\'s Path: {self.DIRB_PATH}')
                 self.log_actions(f'[SETTINGS] Gobuster\'s thread number: {self.GOBUSTER_THREAD_NUMBER}')
-                self.log_actions(f'[SETTINGS] Gobuster fuzz mode: {self.GOBUSTER_FUZZ_MODE}')
                 self.log_actions(f'[SETTINGS] Gobuster dir wordlist: {self.GOBUSTER_DIR_WORDLIST}')
                 self.log_actions(f'[SETTINGS] Gobuster vhost wordlist: {self.GOBUSTER_VHOST_WORDLIST}')
 
@@ -81,9 +85,10 @@ class ToolSuiteInitializer:
     def setup_workspace(self) -> bool:
         touch_info_file = f'touch {self.WORKSPACE_PATH}/info.json' 
         touch_frank_file = f'touch {self.WORKSPACE_PATH}/frank_says.txt' 
+        cp_CHEATSHEET = f'cp {self.PATH}/.assets/EH_CHEATSEHEETS/HOLY_GRAAL.md {self.WORKSPACE_PATH}/CHEATSHEET.md'
         mkdir_nmap = f'mkdir -p {self.WORKSPACE_PATH}/nmap'
         mkdir_gobuster = f'mkdir -p {self.WORKSPACE_PATH}/gobuster'
-        mkdir_notes_creds_logs = f'mkdir -p {self.WORKSPACE_PATH}/notes/creds {self.WORKSPACE_PATH}/notes/logs'
+        mkdir_notes_creds_files = f'mkdir -p {self.WORKSPACE_PATH}/misc/creds {self.WORKSPACE_PATH}/misc/files'
         mkdir_pocs = f'mkdir -p {self.WORKSPACE_PATH}/PoCs'
         
         subprocess.run(
@@ -103,6 +108,14 @@ class ToolSuiteInitializer:
                 )
         self.log_actions('[+] Successfully created frank_says.txt')
         self.FRANK_FILE = f'{self.WORKSPACE_PATH}/frank_says.txt'
+
+        subprocess.run(
+                    cp_CHEATSHEET,
+                    shell = True, 
+                    capture_output = True, 
+                    check = False
+                )
+        self.log_actions('[+] Successfully copyed CHEATSHEET.md')
 
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/nmap'):
@@ -133,18 +146,35 @@ class ToolSuiteInitializer:
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/notes'): 
                 subprocess.run(
-                    mkdir_notes_creds_logs,
+                    mkdir_notes_creds_files,
                     shell = True, 
                     capture_output = True, 
                     check = True
                 )
-                self.NOTES_PATH = f'{self.WORKSPACE_PATH}/notes'
+                self.MISC_PATH = f'{self.WORKSPACE_PATH}/misc'
                 self.CREDS_PATH = f'{self.WORKSPACE_PATH}/notes/creds'
-                self.LOGS_PATH = f'{self.WORKSPACE_PATH}/notes/logs'
-                self.log_actions('[+] Successfully created notes, creds and logs dirs')
+                self.LOGS_PATH = f'{self.WORKSPACE_PATH}/notes/files'
+
+                touch_creds = f'touch {self.CREDS_PATH}/creds.json'
+                touch_notes = f'touch {self.MISC_PATH}/notes.txt'
+
+                subprocess.run(
+                    touch_creds,
+                    shell = True, 
+                    capture_output = True, 
+                    check = True
+                )
+                subprocess.run(
+                    touch_notes,
+                    shell = True, 
+                    capture_output = True, 
+                    check = True
+                )
+
+                self.log_actions('[+] Successfully created misc, creds and files dirs')
             self.GOBUSTER_PATH = f'{self.WORKSPACE_PATH}/gobuster'
         except Exception as e:
-            raise RuntimeError(self.colors.red('[-] Error while creating notes and nested dirs'))
+            raise RuntimeError(self.colors.red('[-] Error while creating misc and nested dirs'))
         
         try:
             if not os.path.exists(f'{self.WORKSPACE_PATH}/PoCs'):
@@ -331,7 +361,7 @@ class ToolSuiteInitializer:
             raise RuntimeError(self.colors.red(f'[+] Host {self.HOST_NAME} is unreachable! Aborting...'))
         else:
             self.log_actions(f'[TEST CONNECTION] {output}')
-            print(self.colors.green(f'[+] Host {self.HOST_NAME} successfully reached!'))
+            print(self.colors.green(f'[+] Host {self.HOST_NAME} successfully reached! Visit it: http://{self.HOST_NAME}'))
             return True
 
 
@@ -413,14 +443,13 @@ class ToolSuiteInitializer:
             self.log_actions(f'[NMAP] {message}')
             return OS
 
-        utils = Utils()
         self.log_actions('[NMAP] Starting nmap routine...')
 
         full_port_path = f'{self.NMAP_PATH}/allports.txt'
         full_port_cmd = f'sudo nmap -p- --min-rate 5000 -T4 -oN {full_port_path} {self.IP}'
 
         print(self.colors.yellow('Waiting for full port scanning...'))
-        utils.run_with_spinner(name='Full port scan', cmd=full_port_cmd, shell=True)
+        self.utils.run_with_spinner(name='Full port scan', cmd=full_port_cmd, shell=True)
         '''
         subprocess.run(
             full_port_cmd,
@@ -434,13 +463,13 @@ class ToolSuiteInitializer:
         ports = parse_open_ports(full_port_path)
         print(self.colors.yellow(f'Active ports: {ports.replace(',',', ')}'))
         self.log_actions(f'[NMAP] Full scan done, active ports: {ports.replace(',',', ')}')
-        self.take_note(data={utils.active_ports_KEY(): ports.split(',')})
+        self.take_note(data={self.utils.active_ports_KEY(): ports.split(',')})
 
         detailed_scan_path = f'{self.NMAP_PATH}/detailded'
         detailed_scan_cmd = f'sudo nmap -sV -sC -O -p{ports} -oA {detailed_scan_path} {self.IP}'
 
         print(self.colors.yellow('Scanning active ports...'))
-        utils.run_with_spinner(name='Active ports scan', cmd=detailed_scan_cmd, shell=True)
+        self.utils.run_with_spinner(name='Active ports scan', cmd=detailed_scan_cmd, shell=True)
         '''
         subprocess.run(
             detailed_scan_cmd,
@@ -456,7 +485,7 @@ class ToolSuiteInitializer:
             udp_scan_path = f'{self.NMAP_PATH}/udp_scan.txt'
             udp_scan_cmd = f'sudo nmap -sU --top-ports 100 -oN {udp_scan_path} {self.IP}'
             print(self.colors.yellow('Waiting for UDP scanning...'))
-            utils.run_with_spinner(name='UDP ports scan', cmd=udp_scan_cmd, shell=True)
+            self.utils.run_with_spinner(name='UDP ports scan', cmd=udp_scan_cmd, shell=True)
             '''
             subprocess.run(
                 udp_scan_cmd,
@@ -469,7 +498,7 @@ class ToolSuiteInitializer:
             self.log_actions('[NMAP] UDP scan done!')
 
         self.OS = detect_OS()
-        self.take_note(data={utils.machine_OS_KEY(): self.OS})
+        self.take_note(data={self.utils.machine_OS_KEY(): self.OS})
 
 
     def setup(self):

@@ -3,9 +3,10 @@
 import argparse
 from kevin_friends.dora import Dora
 from kevin_friends.frank import Frank
-from kevin_friends.utils import Shell_Colors
-from kevin_friends.tool_suite_initializer import ToolSuiteInitializer
+from utils.utils import Shell_Colors
+from utils.tool_suite_initializer import ToolSuiteInitializer
 import os
+import sys
 
 def kevin():
     
@@ -18,6 +19,22 @@ def kevin():
                 print(colors.red(banner))
         except Exception as e:
             print(colors.red('=== KEVIN (offensive toolsuite) === '))
+
+    def valid_dora_options(value: str) -> str:
+        allowed = set('dvf')
+        invalid = set(value) - allowed
+        if invalid:
+            raise argparse.ArgumentTypeError(
+                f"Invalid options: {''.join(invalid)}. Valid options: d, v, f (mix them like 'dvf')"
+            )
+        return value
+    
+    def launch_gui():
+        pass
+    
+    if len(sys.argv) == 1:
+        launch_gui()
+        return
 
     parser = argparse.ArgumentParser(
         description="This program modifies your /etc/hosts file (appends <IP> <commonName> <hostName>)."
@@ -39,7 +56,7 @@ def kevin():
         "--host-name",
         type=str,
         required=True,
-        help="Machine's Host Name"
+        help="Machine's Host Name (e.g. name.htb)"
     )
     parser.add_argument(
         "--nmap",
@@ -48,22 +65,22 @@ def kevin():
         help='Runs nmap scan'
     )
     parser.add_argument(
-        "--dora",
+        "--udp",
         action="store_true",
         required=False,
-        help='To call Dora (the bastard)'
+        help='Runs nmap udp scan'
+    )
+    parser.add_argument(
+        "--dora",
+        type=valid_dora_options,  
+        required=False,
+        help="To call Dora. Options: 'd' dir, 'v' vhost, 'f' fuzz (mix: 'dvf')"
     )
     parser.add_argument(
         "--frank",
         action="store_true",
         required=False,
         help='To raise Frank (the beast)'
-    )
-    parser.add_argument(
-        "--udp",
-        action="store_true",
-        required=False,
-        help='Runs nmap udp scan'
     )
     parser.add_argument(
         "--workspace",
@@ -100,11 +117,11 @@ def kevin():
     
     ip = args.ip
     common_name = args.common_name 
-    host_name = args.host_name
+    host_name = args.host_name 
     DEBUG = args.d
     udp_scan = args.udp
     nmap_scan = args.nmap
-    call_dora = args.dora
+    dora_opt = args.dora
     raise_frank = args.frank
     alias_path = args.alias # es. --alias '~/.bashrc'
     workspace_path = args.workspace # es. --workspace '~/EH'
@@ -132,11 +149,12 @@ def kevin():
         if not setup: raise RuntimeError(colors.red('Something went wrong while setting-up the environment!'))
         if nmap_scan: tool_suite.call_nmap()
         
-        if call_dora:
+        if dora_opt:
             dora = Dora(
                 tool_suite=tool_suite
             )
-            dora.go_bastard()
+            
+            dora.go_bastard(dora_opt)
 
         if raise_frank:
             frank = Frank(
@@ -153,9 +171,9 @@ def kevin():
             choice = str(input('Shut Down? (y/N) '))
             if choice.lower() == 'y':
                 close = True
-                print('Adios    >^.^<')
-                tool_suite.turn_off_vpn() # TODO togliere
-                tool_suite.clean_hosts() # TODO togliere
+                print('Meow!    >^.^<')
+                tool_suite.turn_off_vpn() 
+                tool_suite.clean_hosts() 
 
 if __name__ == "__main__":
     kevin()

@@ -1,6 +1,6 @@
-from .tool_suite_initializer import ToolSuiteInitializer
+from ..utils.tool_suite_initializer import ToolSuiteInitializer
+from ..utils.utils import Utils, Shell_Colors
 import re
-from .utils import Utils, Shell_Colors
 
 class Dora:
 
@@ -63,7 +63,7 @@ class Dora:
 
         return found
 
-    def go_bastard(self):
+    def go_bastard(self, dora_opt):
         utils = Utils()
         try:
             target = self.TOOL.HOST_NAME
@@ -73,13 +73,16 @@ class Dora:
             exclude_dir   = self.get_exclude_length(url=url, mode='dir')
             exclude_vhost = self.get_exclude_length(url=url, mode='vhost')
 
-            commands = { #dirbuster/directory-list-2.3-medium.txt
-                'dir': f'gobuster dir -u {url} -w {self.TOOL.GOBUSTER_DIR_WORDLIST} -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
-                'vhost': f'gobuster vhost -u {url} -w {self.TOOL.GOBUSTER_VHOST_WORDLIST} --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
-                # TODO ATTUALMENTE DNS TROPPO LENTO ---> 'dns': f'gobuster dns -d {target} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --wildcard --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt'
-            }
-            if self.TOOL.GOBUSTER_FUZZ_MODE == 1:
+            commands = {}
+
+            if 'd' in dora_opt:
+                commands['dir'] = f'gobuster dir -u {url} -w {self.TOOL.GOBUSTER_DIR_WORDLIST} -x php,html,txt,bak -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_dir} -o {output_dir}/dir_out.txt',
+            if 'v' in dora_opt:
+                commands['vhost'] = f'gobuster vhost -u {url} -w {self.TOOL.GOBUSTER_VHOST_WORDLIST} --append-domain -t {self.TOOL.GOBUSTER_THREAD_NUMBER} --exclude-length {exclude_vhost} -o {output_dir}/vhost_out.txt', 
+            if 'f' in dora_opt:
                 commands['fuzz'] = f'gobuster fuzz -u "{url}/FUZZ" -w {self.TOOL.SECLIST_PATH}/Discovery/Web-Content/common.txt --exclude-length 0 -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/fuzz_out.txt'
+
+            # TODO ATTUALMENTE DNS TROPPO LENTO ---> 'dns': f'gobuster dns -d {target} -w {self.TOOL.SECLIST_PATH}/Discovery/DNS/subdomains-top1million-110000.txt --wildcard --show-ips --no-error -t {self.TOOL.GOBUSTER_THREAD_NUMBER} -o {output_dir}/dns_out.txt'
 
             message = '[GO_BASTARD] Starting Gobuster\'s processes'
             print(self.colors.yellow(message))

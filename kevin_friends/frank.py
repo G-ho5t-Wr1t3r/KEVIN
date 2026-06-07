@@ -1,6 +1,7 @@
+from ..utils.tool_suite_initializer import ToolSuiteInitializer
+from ..utils.utils import Utils, Shell_Colors
 import os
-from .tool_suite_initializer import ToolSuiteInitializer
-from .utils import Utils, Shell_Colors
+import subprocess
 
 class Frank:
 
@@ -20,7 +21,7 @@ class Frank:
         for root, dirs, files in os.walk(cheatsheet_folder):
             for file in files:
                 path = os.path.join(root, file)
-                name_without_ext = os.path.splitext(file)[0]  # ← rimuove .md
+                name_without_ext = os.path.splitext(file)[0]  
                 result[name_without_ext] = path
 
         return result
@@ -106,3 +107,14 @@ class Frank:
     def enlight_me(self):
         labeled_ports, frank_report = self.label_ports()
         self.the_voice_of_frank(frank_report)
+
+    def export_file(self, filename: str):
+        if not filename: return
+        cp_CHEATSHEET = f'cp {self.CHEATSHEETS[filename]} {self.TOOL.WORKSPACE_PATH}/{filename}.md'
+        subprocess.run(
+            cp_CHEATSHEET,
+            shell = True, 
+            capture_output = True, 
+            check = False
+        )
+        return
