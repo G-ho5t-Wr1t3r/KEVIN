@@ -5,16 +5,17 @@ from kevin_friends.dora import Dora
 from kevin_friends.frank import Frank
 from utils.utils import Shell_Colors
 from utils.tool_suite_initializer import ToolSuiteInitializer
-import os
+from pathlib import Path
 import sys
 
 def kevin():
     
     colors = Shell_Colors()
+    kevin_path = Path(__file__).resolve().parent
 
     def print_banner():
         try:
-            with open(file='.assets/ascii_art.txt', mode='r') as banner_file:
+            with open(file=f'{kevin_path}/.assets/ascii_art.txt', mode='r') as banner_file:
                 banner = banner_file.read()
                 print(colors.red(banner))
         except Exception as e:
@@ -150,7 +151,7 @@ def kevin():
         tool_suite = ToolSuiteInitializer(
             DEBUG=DEBUG, 
             CLEAN=CLEAN, 
-            base_path=os.getcwd(),
+            base_path=kevin_path,
             IP=ip, 
             COMMON_NAME=common_name, 
             HOST_NAME=host_name, 
@@ -178,6 +179,7 @@ def kevin():
 
         # ================================================================== #
     except Exception as e:
+        print('KEVIN ERROR')
         print(e)
     finally:
         close = False

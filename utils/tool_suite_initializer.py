@@ -43,7 +43,7 @@ class ToolSuiteInitializer:
                         }
                     }
         try:
-            with open(file='.assets/config.json', mode='r') as config_file:
+            with open(file=f'{self.PATH}/.assets/config.json', mode='r') as config_file:
                 config_file = json.load(config_file)
                 self.THEME = config_file['user_settings'][config_labels['user_settings'][0]]
                 self.SECLIST_PATH = config_file['user_settings'][config_labels['user_settings'][1]]
@@ -69,13 +69,18 @@ class ToolSuiteInitializer:
 
 
     def log_actions(self, message: str):
+        os.makedirs('logs', exist_ok=True)
         if self.CLEAN and self.DEBUG:
-            with open (file=f'logs/logs_{datetime.now().strftime("%d%m%Y")}.log', mode='w') as log_file:
+            with open (file=f'{self.PATH}/logs/logs_{datetime.now().strftime("%d%m%Y")}.log', mode='w') as log_file:
                 log_file.write(f'{datetime.now().strftime("%H:%M:%S")} |---> {message}\n')
                 self.CLEAN = False
         elif not self.CLEAN and self.DEBUG:
-            with open (file=f'logs/logs_{datetime.now().strftime("%d%m%Y")}.log', mode='a') as log_file:
-                log_file.write(f'{datetime.now().strftime("%H:%M:%S")} |---> {message}\n')
+            if os.path.exists(path=f'logs/logs_{datetime.now().strftime("%d%m%Y")}.log'):
+                with open (file=f'{self.PATH}/logs/logs_{datetime.now().strftime("%d%m%Y")}.log', mode='a') as log_file:
+                    log_file.write(f'{datetime.now().strftime("%H:%M:%S")} |---> {message}\n')
+            else:
+                with open (file=f'{self.PATH}/logs/logs_{datetime.now().strftime("%d%m%Y")}.log', mode='w') as log_file:
+                    log_file.write(f'{datetime.now().strftime("%H:%M:%S")} |---> {message}\n')
         else:
             return
 
