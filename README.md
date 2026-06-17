@@ -1,4 +1,4 @@
-# KEVIN (Offensive Toolsuite)
+# KEVIN
 
 <center><img src=".assets/.imgs/kevin_logo.jpg" width="700" height="350"></center>
 
