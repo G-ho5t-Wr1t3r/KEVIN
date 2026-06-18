@@ -2,9 +2,10 @@
 
 <center><img src=".assets/.imgs/kevin_logo.jpg" width="700" height="350"></center>
 
-*Language Selection*
 <details>
   <summary><b>IT</b></summary>
+
+## Overview
 
 **AVVISO: Questo progetto è IN FASE DI SVILUPPO ed è attualmente in fase di sviluppo attivo. Alcune funzionalità potrebbero essere incomplete o soggette a modifiche significative.**
 
@@ -81,8 +82,10 @@ Ciò significa che sei libero di condividere e modificare il materiale, a condiz
 
 </details>
 
-<details>
+<details open>
   <summary><b>EN</b></summary>
+
+## Overview
 
 **WARNING: This project is a WORK IN PROGRESS and is currently under active development. Some features may be incomplete or subject to significant changes.**
 
